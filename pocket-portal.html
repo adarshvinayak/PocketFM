@@ -1,0 +1,2741 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0A10">
+<title>Pocket Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --gold:#D8A94E; --maroon:#7B2B2B; --cream:#EDE9DE; --ink:#0B0A10; --panel:#14131C; --line:#26242F; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--ink);color:var(--cream);
+    font-family:Inter,system-ui,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased;}
+  #app{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;}
+
+  #stage{
+    position:relative;
+    width:min(100vw, calc(100vh * 16 / 9));
+    height:min(100vh, calc(100vw * 9 / 16));
+    background:#000; overflow:hidden;
+    box-shadow:0 0 80px rgba(0,0,0,.7);
+  }
+  #bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;transition:filter .35s ease, transform .35s ease;}
+
+  .vignette{position:absolute;inset:0;pointer-events:none;z-index:1;
+    background:radial-gradient(ellipse at 50% 45%, transparent 52%, rgba(0,0,0,.6) 100%);}
+  .grain{position:absolute;inset:0;pointer-events:none;z-index:1;opacity:.05;mix-blend-mode:overlay;
+    background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2"/></filter><rect width="180" height="180" filter="url(%23n)"/></svg>');}
+
+  /* FIX: layers span the whole stage, so they must not eat clicks themselves.
+     Only their interactive children opt back in via pointer-events:auto. */
+  #sprites-layer{position:absolute;inset:0;z-index:2;pointer-events:none;}
+  #hotspots-layer{position:absolute;inset:0;z-index:3;pointer-events:none;}
+  #editor-overlay{position:absolute;inset:0;z-index:5;pointer-events:none;display:none;}
+  #ui-layer{position:absolute;inset:0;z-index:4;pointer-events:none;}
+  #fade-overlay{position:absolute;inset:0;z-index:6;background:#000;opacity:0;pointer-events:none;transition:opacity .3s ease;}
+  #entry-card{position:absolute; inset:0; z-index:30; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:8%; background:#09090b; color:var(--cream); cursor:pointer; opacity:0; pointer-events:none;
+    transition:opacity .65s ease;}
+  #entry-card.is-visible{opacity:1; pointer-events:auto;}
+  #entry-card.is-leaving{opacity:0; pointer-events:none;}
+  .entry-card-copy{max-width:900px; text-align:center; display:flex; flex-direction:column; align-items:center;}
+  .entry-card-line{margin:0; opacity:0; transform:translateY(12px); animation:entryLine .7s ease forwards;}
+  .entry-card-kicker{margin-bottom:25px; color:rgba(237,233,222,.54); font-size:11px; font-weight:700; letter-spacing:.23em; text-transform:uppercase; animation-delay:.2s;}
+  .entry-card-main{font-family:Fraunces,Georgia,serif; font-size:clamp(29px,4.3vw,58px); font-weight:500; line-height:1.16;}
+  .entry-card-main.first{animation-delay:.65s;}
+  .entry-card-main.second{margin-top:13px; animation-delay:1.45s;}
+  .entry-card-instruction{margin-top:29px; color:rgba(237,233,222,.61); font-size:clamp(11px,1.35vw,15px); letter-spacing:.11em; line-height:1.5; animation-delay:2.65s;}
+  .entry-card-skip{position:static; width:72px; height:72px; margin-top:34px; display:grid; place-items:center;
+    border:1px solid rgba(237,233,222,.32); border-radius:50%; background:rgba(255,255,255,.03); color:var(--cream);
+    font:400 54px/1 Georgia,serif; cursor:pointer; transition:background .18s ease, transform .18s ease;}
+  .entry-card-skip:hover,.entry-card-skip:focus-visible{background:rgba(216,169,78,.18); transform:translateX(2px); outline:1px solid rgba(216,169,78,.8); outline-offset:3px;}
+  @keyframes entryLine{to{opacity:1; transform:none;}}
+
+  /* ---------------- Sprites ---------------- */
+  .sprite{
+    position:absolute; transform:translateX(-50%); pointer-events:auto;
+    cursor:pointer; outline:none;
+  }
+  .sprite img{
+    display:block; height:100%; width:auto; pointer-events:none;
+    filter:drop-shadow(0 0 0 rgba(216,169,78,0)) brightness(1);
+    transform:scale(1); transform-origin:bottom center;
+    transition:filter .2s ease, transform .2s ease;
+  }
+  .sprite:hover img, .sprite:focus-visible img{
+    filter:drop-shadow(0 6px 22px rgba(216,169,78,.75)) brightness(1.08);
+    transform:scale(1.02);
+  }
+  .sprite .label-pill{
+    position:absolute; left:50%; bottom:100%; transform:translateX(-50%); margin-bottom:8px;
+    white-space:nowrap; background:rgba(11,10,16,.82); color:var(--cream);
+    font-size:10px; letter-spacing:.14em; text-transform:uppercase; font-weight:600;
+    padding:5px 11px; border-radius:999px; opacity:0; pointer-events:none;
+    transition:opacity .15s ease; border:1px solid rgba(216,169,78,.4);
+  }
+  .sprite:hover .label-pill, .sprite:focus-visible .label-pill{opacity:1;}
+  .talk-prompt{display:none; position:absolute; left:50%; top:50%; z-index:3; transform:translate(-50%,-50%);
+    border:1px solid rgba(216,169,78,.9); border-radius:999px; padding:9px 16px; background:rgba(11,10,16,.92);
+    color:var(--cream); font:700 12px Inter,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase; box-shadow:0 6px 18px rgba(0,0,0,.5);}
+  body.no-hover .sprite.talk-ready img{filter:drop-shadow(0 0 20px rgba(216,169,78,.9)) brightness(1.13); transform:scale(1.025);}
+  .sprite .pulse-ring{
+    display:none; position:absolute; left:50%; bottom:-3%; width:16%; aspect-ratio:1/1;
+    transform:translateX(-50%); border-radius:50%; border:2px solid rgba(216,169,78,.65);
+    animation:ringPulse 1.8s ease-out infinite; pointer-events:none;
+  }
+  body.no-hover .sprite .pulse-ring{display:block;}
+
+  @keyframes ringPulse{
+    0%{transform:translateX(-50%) scale(.8);opacity:.85;}
+    75%{transform:translateX(-50%) scale(1.25);opacity:0;}
+    100%{opacity:0;}
+  }
+
+  /* ---------------- Hotspots (objects + exits) ---------------- */
+  .hotspot{position:absolute; cursor:pointer; border-radius:10px; outline:none; pointer-events:auto;}
+  .hotspot .dot{
+    position:absolute; left:50%; top:50%; width:9px; height:9px; border-radius:50%;
+    transform:translate(-50%,-50%); background:var(--gold);
+    box-shadow:0 0 10px rgba(216,169,78,.7);
+    animation:dotPulse 2.5s ease-in-out infinite;
+  }
+  @keyframes dotPulse{0%,100%{opacity:.35;}50%{opacity:.75;}}
+
+  .hotspot:hover, .hotspot:focus-visible{
+    box-shadow:0 0 0 1px rgba(216,169,78,.9), inset 0 0 22px rgba(216,169,78,.22);
+  }
+  .hotspot .label-pill{
+    position:absolute; left:100%; top:50%; transform:translateY(-50%); margin-left:10px;
+    white-space:nowrap; background:rgba(11,10,16,.85); color:var(--cream);
+    font-size:10px; letter-spacing:.14em; text-transform:uppercase; font-weight:600;
+    padding:5px 11px; border-radius:999px; opacity:0; pointer-events:none;
+    transition:opacity .15s ease; border:1px solid rgba(216,169,78,.4);
+  }
+  .hotspot:hover .label-pill, .hotspot:focus-visible .label-pill{opacity:1;}
+  .hotspot.flip .label-pill{left:auto; right:100%; margin-left:0; margin-right:10px;}
+
+  .exit-hotspot .chevron{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    font-size:34px; color:var(--gold); text-shadow:0 0 14px rgba(216,169,78,.65);
+    opacity:.6; pointer-events:none;
+  }
+  .exit-hotspot.dir-right .chevron{animation:chevronRight 1.6s ease-in-out infinite;}
+  .exit-hotspot.dir-left .chevron{animation:chevronLeft 1.6s ease-in-out infinite;}
+  @keyframes chevronRight{0%,100%{opacity:.5;transform:translate(-50%,-50%);}50%{opacity:1;transform:translate(calc(-50% + 6px),-50%);}}
+  @keyframes chevronLeft{0%,100%{opacity:.5;transform:translate(-50%,-50%);}50%{opacity:1;transform:translate(calc(-50% - 6px),-50%);}}
+
+  /* ---------------- UI chrome ---------------- */
+  .ui-pill{
+    pointer-events:auto; background:rgba(11,10,16,.78); border:1px solid rgba(216,169,78,.35);
+    border-radius:12px; padding:12px 18px; backdrop-filter:blur(3px);
+    box-shadow:0 4px 18px rgba(0,0,0,.35);
+  }
+  .ui-top-left{position:absolute; top:3%; left:3%; max-width:64%;}
+  .ui-top-left .title{font-family:Fraunces,Georgia,serif; font-weight:700; font-size:clamp(22px,4vw,38px); line-height:1.05;}
+  .ui-top-left .subtitle{margin-top:5px; font-size:clamp(11px,1.5vw,15px); letter-spacing:.14em; text-transform:uppercase; color:rgba(237,233,222,.72);}
+  .ui-top-right{position:absolute; top:3%; right:3%;}
+  .ui-top-right .countdown{font-variant-numeric:tabular-nums; font-size:clamp(15px,2.2vw,21px); letter-spacing:.08em; color:var(--gold); font-weight:700;}
+  .ui-top-right .countdown.is-amber{color:#e0a85c;}
+  .ui-top-right .countdown.is-urgent{animation:countdownPulse 1.35s ease-in-out infinite;}
+  @keyframes countdownPulse{50%{opacity:.5; transform:scale(1.025);}}
+  .window-label{margin-top:5px; max-width:240px; color:rgba(237,233,222,.48); font-size:9px; line-height:1.25; letter-spacing:.07em; text-transform:uppercase;}
+  .presence{position:absolute; top:calc(3% + 58px); left:3%; display:flex; align-items:center; gap:7px; color:rgba(237,233,222,.62); font-size:10px; letter-spacing:.07em; text-transform:uppercase;}
+  .presence-dot{width:7px; height:7px; border-radius:50%; background:var(--gold); animation:presencePulse 2.6s ease-in-out infinite;}
+  @keyframes presencePulse{50%{opacity:.35; transform:scale(.72);}}
+  .ui-bottom-left{position:absolute; bottom:3%; left:3%;}
+  .ui-bottom-left .room-name{font-size:clamp(14px,2vw,19px); font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:rgba(237,233,222,.9);}
+  .ui-bottom-right{position:absolute; bottom:3%; right:3%;}
+  .ui-bottom-right .clue-count{font-size:clamp(14px,2vw,19px); font-weight:600; letter-spacing:.08em; text-transform:uppercase; border:0; padding:0; background:transparent; color:var(--cream); cursor:pointer;}
+  .ui-bottom-right .clue-count b{color:var(--gold); font-size:1.1em;}
+  .entry-replay{position:absolute; top:calc(3% + 58px); right:3%; width:38px; height:38px; padding:0; display:grid; place-items:center;
+    color:var(--cream); font:700 17px/1 Fraunces,Georgia,serif; cursor:pointer;}
+  .voice-warm-status{position:absolute; top:calc(3% + 108px); right:3%; color:rgba(237,233,222,.55); font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; opacity:0; transition:opacity .35s ease;}
+  .voice-warm-status.is-warming{opacity:1;}
+  #voice-mute{position:absolute; top:calc(3% + 132px); right:3%; width:38px; height:34px; padding:0; display:grid; place-items:center; cursor:pointer;}
+  #voice-mute svg,.conversation-mute svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+  #voice-mute.is-muted,.conversation-mute.is-muted{color:rgba(237,233,222,.45);}
+
+  /* ---------------- exit button (replaces a hotspot box for asButton exits) ---------------- */
+  #exit-buttons{position:absolute; left:0; right:0; bottom:3%; display:flex; justify-content:center; gap:12px; pointer-events:none; z-index:4;}
+  .exit-btn{
+    pointer-events:auto; cursor:pointer; font-family:Inter,system-ui,sans-serif;
+    background:rgba(11,10,16,.82); border:1px solid rgba(216,169,78,.5); color:var(--cream);
+    border-radius:999px; padding:13px 26px; font-size:clamp(13px,1.7vw,16px); font-weight:600;
+    letter-spacing:.08em; text-transform:uppercase; display:flex; align-items:center; gap:10px;
+    box-shadow:0 6px 22px rgba(0,0,0,.45); transition:background .15s ease, border-color .15s ease, transform .15s ease;
+  }
+  .exit-btn:hover{background:rgba(216,169,78,.18); border-color:rgba(216,169,78,.85); transform:translateY(-1px);}
+  .exit-btn .chev{color:var(--gold); font-size:1.2em; line-height:1;}
+
+  /* ---------------- Modal panels ---------------- */
+  /* FIX: the container is always in the DOM, so it must be click-through when
+     empty. The backdrop it holds turns pointer events back on. */
+  #modal-root{position:fixed;inset:0;z-index:20;pointer-events:none;}
+  .modal-backdrop{
+    position:absolute;inset:0; background:rgba(6,5,9,.72); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; padding:5vh 5vw;
+    animation:fadeIn .2s ease both; pointer-events:auto;
+  }
+  .modal-backdrop.object-examine-backdrop{background:rgba(6,5,9,.5); backdrop-filter:blur(6px) brightness(.5);}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  .panel{
+    position:relative; width:min(520px,92vw); max-height:82vh; overflow:auto;
+    background:linear-gradient(160deg, rgba(28,18,20,.97), rgba(11,10,16,.97));
+    border:1px solid rgba(216,169,78,.35); border-radius:16px; padding:32px 28px 28px;
+    box-shadow:0 30px 80px rgba(0,0,0,.6);
+    animation:panelIn .25s cubic-bezier(.2,.8,.2,1) both;
+  }
+  @keyframes panelIn{from{opacity:0;transform:translateY(10px) scale(.98);}to{opacity:1;transform:none;}}
+  .panel .close-btn{
+    position:absolute; top:14px; right:14px; width:30px; height:30px; border-radius:50%;
+    border:1px solid rgba(216,169,78,.35); background:rgba(255,255,255,.03); color:var(--cream);
+    font-size:14px; cursor:pointer; line-height:1;
+  }
+  .panel .close-btn:hover{background:rgba(216,169,78,.15);}
+  .panel .eyebrow{font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--gold); font-weight:600;}
+  .panel h2{font-family:Fraunces,Georgia,serif; font-weight:700; font-size:26px; margin:8px 0 14px;}
+  .panel p{font-size:14.5px; line-height:1.7; color:rgba(237,233,222,.9); white-space:pre-line;}
+  .panel .maroon-rule{height:2px; width:36px; background:var(--maroon); margin:2px 0 14px; border-radius:2px;}
+  .evidence-examine{display:grid; grid-template-columns:minmax(132px,40%) minmax(0,1fr); gap:20px; align-items:center;}
+  .evidence-examine.no-model{display:block;}
+  .evidence-model-wrap{min-width:0; text-align:center;}
+  .evidence-model{width:100%; height:clamp(142px,25vh,190px); border:1px solid rgba(216,169,78,.2); border-radius:10px;
+    background:radial-gradient(ellipse at 50% 48%, rgba(123,43,43,.12), transparent 66%); touch-action:none; cursor:grab; overflow:hidden;}
+  .evidence-model:active{cursor:grabbing;}
+  .evidence-model canvas{display:block; width:100%; height:100%; outline:none;}
+  .evidence-caption{margin-top:8px; color:rgba(216,169,78,.66); font:700 9px/1 Inter,system-ui,sans-serif; letter-spacing:.2em; text-transform:uppercase;}
+  .evidence-copy{min-width:0;}
+  .evidence-copy .maroon-rule{margin-top:2px;}
+  .object-examine-panel{width:min(640px,92vw);}
+  .object-examine-copy{min-height:88px; font-family:Fraunces,Georgia,serif; font-size:clamp(18px,2.1vw,23px)!important; line-height:1.42!important; color:var(--cream)!important; cursor:pointer;}
+  .object-examine-copy.is-typing::after{content:""; display:inline-block; width:6px; height:1em; margin-left:3px; vertical-align:-.14em; background:var(--gold); animation:objectCaret .7s steps(2,end) infinite;}
+  @keyframes objectCaret{50%{opacity:0;}}
+  .object-clue-noted{margin-top:15px; padding:10px 12px; border-left:2px solid var(--gold); background:rgba(216,169,78,.08); color:rgba(237,233,222,.94); font-size:13px; line-height:1.45; animation:fadeIn .25s ease both;}
+  .object-clue-noted strong{display:block; margin-bottom:3px; color:var(--gold); font-size:9px; letter-spacing:.17em; text-transform:uppercase;}
+  .object-step-back{margin-top:20px; border:1px solid rgba(216,169,78,.55); border-radius:999px; padding:10px 15px; background:rgba(216,169,78,.08); color:var(--cream); font:700 10px/1 Inter,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase; cursor:pointer;}
+  .object-step-back:hover,.object-step-back:focus-visible{background:rgba(216,169,78,.2); outline:1px solid var(--gold); outline-offset:2px;}
+  .journal-panel{width:min(650px,92vw);}
+  .journal-section{margin-top:20px;}
+  .journal-section h3{margin:0 0 8px; color:var(--gold); font:700 10px/1.2 Inter,system-ui,sans-serif; letter-spacing:.17em; text-transform:uppercase;}
+  .journal-row{padding:11px 0; border-top:1px solid rgba(237,233,222,.11);}
+  .journal-row.is-unfound{color:rgba(237,233,222,.38); font-size:13px; font-style:italic;}
+  .journal-source{display:block; margin-bottom:4px; color:rgba(216,169,78,.78); font:700 9px/1.2 Inter,system-ui,sans-serif; letter-spacing:.13em; text-transform:uppercase;}
+  .journal-location{display:block; margin-top:5px; color:rgba(237,233,222,.48); font-size:11px;}
+  .journal-topic{width:100%; padding:10px 12px; border:1px solid rgba(216,169,78,.35); border-radius:8px; background:rgba(216,169,78,.06); color:var(--cream); text-align:left; cursor:pointer; font:600 12px/1.35 Inter,system-ui,sans-serif;}
+  .journal-topic:hover,.journal-topic:focus-visible{background:rgba(216,169,78,.16); border-color:var(--gold); outline:1px solid var(--gold); outline-offset:2px;}
+  #topic-toasts{position:absolute; right:3%; bottom:10%; z-index:18; display:flex; flex-direction:column; align-items:flex-end; gap:10px; pointer-events:none; max-width:min(390px,42vw);}
+  .topic-toast{pointer-events:auto; width:100%; border:1px solid rgba(216,169,78,.7); border-radius:10px; padding:12px 14px; background:rgba(18,13,17,.96); box-shadow:0 12px 32px rgba(0,0,0,.38); color:var(--cream); text-align:left; cursor:pointer; animation:toastIn .28s cubic-bezier(.2,.8,.2,1) both;}
+  .topic-toast:hover,.topic-toast:focus-visible{background:rgba(63,40,21,.98); outline:1px solid var(--gold); outline-offset:2px;}
+  .topic-toast-kicker{display:block; margin-bottom:4px; color:var(--gold); font:700 9px/1 Inter,system-ui,sans-serif; letter-spacing:.16em; text-transform:uppercase;}
+  .topic-toast-name{display:block; font:600 13px/1.3 Inter,system-ui,sans-serif;}
+  @keyframes toastIn{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+  @media(max-width:520px){ .panel{padding:26px 20px 22px;} .panel h2{font-size:22px;} .evidence-examine{gap:14px; grid-template-columns:minmax(112px,38%) minmax(0,1fr);} .evidence-model{height:142px;} .evidence-copy p{font-size:13.5px;} .object-examine-copy{font-size:19px!important;} .object-examine-panel{max-height:88dvh;} .journal-panel{max-height:88dvh;} }
+
+  /* ---------------- Conversation overlay ---------------- */
+  #conversation-root{position:absolute; inset:0; z-index:7; pointer-events:none;}
+  #hotspots-layer,#ui-layer{transition:opacity .2s ease;}
+  .conversation-shell{position:absolute; inset:0; pointer-events:auto;}
+  .conversation-content{position:absolute; inset:0; opacity:0; pointer-events:none; transition:opacity .15s ease;}
+  #conversation-root.is-ready .conversation-content{opacity:1; pointer-events:auto;}
+  body.conversation-open #bg{filter:blur(10px) brightness(.35); transform:scale(1.035); transition:filter .35s ease, transform .35s ease;}
+  body.conversation-open #hotspots-layer,
+  body.conversation-open #ui-layer{opacity:0; pointer-events:none; transition:opacity .2s ease;}
+  body.conversation-open #sprites-layer{z-index:8; pointer-events:none;}
+  body.conversation-open .sprite:not(.conversation-active){opacity:0; pointer-events:none;}
+  .sprite.conversation-active{
+    --convo-dx:0px; --convo-dy:0px; --convo-scale:1;
+    z-index:2; animation:none !important; pointer-events:none;
+    transform:translateX(calc(-50% + var(--convo-dx))) translateY(var(--convo-dy)) scale(var(--convo-scale));
+    transform-origin:center bottom; transition:transform .4s cubic-bezier(.2,.8,.2,1); will-change:transform;
+  }
+  .sprite.conversation-active img{filter:drop-shadow(0 14px 26px rgba(0,0,0,.6)) brightness(1.05);}
+  .conversation-nameplate{position:absolute; top:11%; right:5%; width:min(47%,520px); color:var(--cream);}
+  .conversation-nameplate .name{font-family:Fraunces,Georgia,serif; font-size:clamp(28px,4.6vw,52px); font-weight:700; letter-spacing:.035em; line-height:1;}
+  .conversation-nameplate.is-speaking .name,.conversation-nameplate.is-considering .name{animation:voiceGlow 1.15s ease-in-out infinite alternate;}
+  .conversation-nameplate .rule{width:74px; height:1px; margin-top:13px; background:rgba(216,169,78,.82);}
+  @keyframes voiceGlow{from{text-shadow:0 0 0 rgba(216,169,78,0);}to{text-shadow:0 0 18px rgba(216,169,78,.75);}}
+  .conversation-panel{position:absolute; left:0; right:0; bottom:0; min-height:36%; max-height:48%; overflow-y:auto;
+    padding:clamp(20px,3vw,36px) 5% clamp(20px,2.8vw,32px); background:rgba(11,10,16,.88);
+    border-top:1px solid rgba(216,169,78,.25); backdrop-filter:blur(12px); box-shadow:0 -16px 42px rgba(0,0,0,.16);}
+  .conversation-copy{margin-left:41%; max-width:min(660px,55vw);}
+  .question-budget{position:absolute; top:18px; right:5%; display:flex; align-items:center; gap:8px; color:rgba(237,233,222,.68); font-size:10px; letter-spacing:.1em; text-transform:uppercase; font-weight:600;}
+  .budget-dots{display:flex; gap:5px;}
+  .budget-dot{width:7px; height:7px; border-radius:50%; border:1px solid rgba(216,169,78,.55); background:transparent;}
+  .budget-dot.filled{background:var(--gold); box-shadow:0 0 9px rgba(216,169,78,.42);}
+  .dialogue-line{min-height:3.6em; max-height:3.6em; overflow-y:auto; padding-right:4px; color:var(--cream); font-family:Fraunces,Georgia,serif;
+    font-size:clamp(22px,2.7vw,32px); line-height:1.38; letter-spacing:.005em;}
+  .dialogue-line.thinking{color:rgba(237,233,222,.63); font-style:italic;}
+  .dialogue-line.thinking::after{content:'…'; display:inline-block; color:var(--gold); animation:considerBeat 1.25s steps(2,end) infinite;}
+  @keyframes considerBeat{0%,100%{opacity:.22; transform:translateY(1px);}50%{opacity:1; transform:translateY(-1px);}}
+  .dialogue-line.audio-pending::after{content:"  ◌"; color:var(--gold); font:600 .55em/1 Inter,system-ui,sans-serif; vertical-align:middle;}
+  .gate-tag{display:inline-flex; align-items:center; margin-top:11px; padding:5px 9px; border:1px solid rgba(112,106,157,.5); border-radius:999px;
+    background:rgba(73,67,113,.28); color:#d7c776; font-size:9px; letter-spacing:.095em; line-height:1.3; text-transform:uppercase;}
+  .gate-row{display:flex; align-items:center; flex-wrap:wrap; gap:7px; margin-top:11px;}
+  .gate-row .gate-tag{margin-top:0;}
+  .gate-readout{border:1px solid rgba(112,106,157,.6); border-radius:999px; padding:5px 9px; background:rgba(73,67,113,.12); color:#aeb7f1; cursor:pointer;
+    font:700 9px/1.3 Inter,system-ui,sans-serif; letter-spacing:.095em; text-transform:uppercase; transition:background .15s ease,border-color .15s ease;}
+  .gate-readout:hover,.gate-readout:focus-visible{background:rgba(112,106,157,.28); border-color:#8a86c8; outline:1px solid rgba(138,134,200,.7); outline-offset:2px;}
+  .knowledge-panel{max-height:0; overflow:hidden; opacity:0; transform:translateY(-7px); margin-top:0; border:1px solid transparent; border-radius:8px;
+    background:rgba(30,29,57,.62); color:#d9defe; font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace; transition:max-height .28s ease,opacity .22s ease,transform .22s ease,margin .22s ease,padding .22s ease;}
+  .knowledge-panel.is-open{max-height:360px; overflow:auto; opacity:1; transform:none; margin-top:10px; padding:12px; border-color:rgba(112,106,157,.65);}
+  .knowledge-panel .readout-head{color:#b7c0ff; font-size:9px; letter-spacing:.13em; text-transform:uppercase;}
+  .knowledge-panel .readout-section{margin-top:10px; color:#aab3e8; font-weight:700; font-size:9px; letter-spacing:.1em; text-transform:uppercase;}
+  .knowledge-panel ul{margin:5px 0 0; padding-left:15px; color:rgba(237,233,222,.82); font-weight:400; font-size:10px; letter-spacing:0; text-transform:none;}
+  .knowledge-panel li{margin:3px 0;}
+  .knowledge-panel .readout-withheld{color:#aeb7f1; font-weight:400; font-size:10px; letter-spacing:0; text-transform:none;}
+  .knowledge-panel .readout-foot{margin-top:11px; padding-top:9px; border-top:1px solid rgba(112,106,157,.35); color:rgba(187,193,241,.7); font-size:9px; letter-spacing:0; text-transform:none;}
+  .answer-type-tag{display:none; margin-left:7px; padding:4px 7px; border:1px solid rgba(237,233,222,.19); border-radius:999px; color:rgba(237,233,222,.52); background:rgba(255,255,255,.025); font:700 8px/1 Inter,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase; vertical-align:middle;}
+  .answer-type-tag.is-visible{display:inline-flex;}
+  .topic-area{margin-top:15px; transition:opacity .2s ease, transform .2s ease;}
+  .conversation-shell.is-exhausting .topic-area{opacity:0; transform:translateY(5px); pointer-events:none;}
+  .topic-menu{display:flex; flex-wrap:wrap; gap:8px;}
+  .topic-chip{position:relative; max-width:100%; border:1px solid rgba(237,233,222,.25); border-radius:999px; padding:8px 11px; background:rgba(255,255,255,.035);
+    color:var(--cream); font:600 11px/1.15 Inter,system-ui,sans-serif; letter-spacing:.055em; cursor:pointer; transition:background .15s ease, border-color .15s ease, opacity .15s ease, transform .15s ease;}
+  .topic-chip:hover:not(:disabled), .topic-chip:focus-visible{background:rgba(216,169,78,.14); border-color:rgba(216,169,78,.72); outline:1px solid rgba(216,169,78,.75); outline-offset:2px;}
+  .topic-chip:active:not(:disabled), .step-away:active{transform:scale(.98);}
+  .topic-chip.asked{opacity:.57;}
+  .topic-chip.locked{opacity:.4; cursor:not-allowed; padding-left:28px;}
+  .topic-chip.focused{border-color:var(--gold); background:rgba(216,169,78,.18); animation:topicFocus 1.1s ease-in-out 2;}
+  @keyframes topicFocus{50%{transform:scale(1.045); box-shadow:0 0 0 4px rgba(216,169,78,.12);}}
+  .lock-glyph{position:absolute; left:11px; top:50%; width:9px; height:7px; border:1px solid currentColor; border-radius:1px; transform:translateY(-18%);}
+  .lock-glyph::before{content:""; position:absolute; left:1px; right:1px; bottom:6px; height:5px; border:1px solid currentColor; border-bottom:0; border-radius:5px 5px 0 0;}
+  .topic-chip .topic-hint{display:block; margin-top:3px; font-size:8px; letter-spacing:.025em; text-transform:none;}
+  .asked-marker{margin-left:5px; color:var(--gold); font-size:8px; letter-spacing:.08em;}
+  .free-question{display:flex; gap:8px; margin-top:12px;}
+  .free-question input{min-width:0; flex:1; border:1px solid rgba(237,233,222,.18); border-radius:8px; padding:9px 11px; background:rgba(255,255,255,.035); color:var(--cream); font:12px Inter,system-ui,sans-serif;}
+  .free-question input:disabled{cursor:not-allowed; opacity:.54;}
+  .free-question button,.step-away,.conversation-end{border:1px solid rgba(216,169,78,.52); border-radius:8px; background:rgba(216,169,78,.14); color:var(--cream); cursor:pointer; font:600 11px Inter,system-ui,sans-serif; letter-spacing:.075em; text-transform:uppercase; transition:transform .15s ease, background .15s ease;}
+  .free-question button{padding:0 13px;}
+  .free-question button:disabled{cursor:not-allowed; opacity:.5;}
+  .step-away{margin-top:16px; padding:11px 15px;}
+  .step-away:hover,.conversation-end:hover{background:rgba(216,169,78,.24);}
+  .conversation-end{position:absolute; top:18px; left:5%; padding:7px 10px; font-size:9px;}
+  .conversation-mute{position:absolute; top:18px; left:calc(5% + 126px); width:30px; height:30px; padding:0; display:grid; place-items:center; border:1px solid rgba(216,169,78,.4); border-radius:50%; background:rgba(11,10,16,.48); color:var(--cream); cursor:pointer;}
+  .mobile-pan-hint{display:none;}
+  #leave-portal{position:absolute; bottom:10%; left:50%; transform:translateX(-50%); z-index:5; border:1px solid rgba(216,169,78,.48); border-radius:999px; padding:9px 15px; background:rgba(11,10,16,.82); color:var(--cream); font:700 10px/1 Inter,system-ui,sans-serif; letter-spacing:.12em; text-transform:uppercase; cursor:pointer;}
+  #leave-portal:hover,#leave-portal:focus-visible{background:rgba(216,169,78,.18); outline:1px solid var(--gold); outline-offset:2px;}
+  #ritual-root{position:fixed; inset:0; z-index:30; pointer-events:none;}
+  .ritual-shell{position:absolute; inset:0; display:grid; place-items:center; padding:4vh 5vw; pointer-events:auto; background:rgba(5,4,8,.9); backdrop-filter:blur(8px) brightness(.55); overflow:auto;}
+  .ritual-card{width:min(740px,94vw); max-height:92dvh; overflow:auto; padding:clamp(24px,4vw,44px); border:1px solid rgba(216,169,78,.42); border-radius:16px; background:linear-gradient(145deg,rgba(38,23,25,.98),rgba(10,9,14,.98)); box-shadow:0 30px 90px rgba(0,0,0,.65); animation:panelIn .3s cubic-bezier(.2,.8,.2,1) both;}
+  .ritual-kicker{color:var(--gold); font:700 10px/1 Inter,system-ui,sans-serif; letter-spacing:.18em; text-transform:uppercase;}
+  .ritual-card h2{margin:10px 0 8px; font:700 clamp(25px,4vw,42px)/1.08 Fraunces,Georgia,serif; color:var(--cream);}
+  .ritual-copy{max-width:58ch; color:rgba(237,233,222,.82); font:17px/1.55 Fraunces,Georgia,serif;}
+  .vote-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:24px 0 18px;}
+  .vote-card{display:flex; align-items:center; gap:12px; min-height:78px; padding:12px; border:1px solid rgba(237,233,222,.18); border-radius:10px; background:rgba(255,255,255,.025); color:var(--cream); text-align:left; cursor:pointer; transition:transform .18s ease,opacity .18s ease,border-color .18s ease,background .18s ease;}
+  .vote-card:hover,.vote-card:focus-visible,.vote-card.selected{border-color:var(--gold); background:rgba(216,169,78,.14); outline:1px solid var(--gold); outline-offset:2px;}
+  .vote-card.selected{transform:scale(1.015);}.vote-grid.has-selection .vote-card:not(.selected){opacity:.36;}
+  .vote-avatar{width:44px; height:44px; flex:0 0 44px; border-radius:50%; object-fit:cover; border:1px solid rgba(216,169,78,.42); background:radial-gradient(circle at 50% 36%,#8f7355 0 16%,transparent 17%),linear-gradient(135deg,#302734,#0d0c12);}
+  .vote-avatar.silhouette{display:block;}
+  .crowd-compare{margin:18px 0; padding:14px; border-left:2px solid var(--gold); background:rgba(216,169,78,.07); color:var(--cream);}
+  .crowd-compare .plus-one{display:inline-block; margin-left:6px; color:var(--gold); animation:plusOne .5s ease-out both;} @keyframes plusOne{from{transform:translateY(5px);opacity:0}to{transform:none;opacity:1}}
+  .vote-bars{margin-top:14px;}.vote-bar{display:grid; grid-template-columns:105px 1fr 38px; gap:8px; align-items:center; margin:7px 0; color:rgba(237,233,222,.75); font-size:11px;}.vote-bar i{display:block; height:6px; border-radius:999px; background:rgba(237,233,222,.13); overflow:hidden;}.vote-bar i b{display:block; height:100%; background:var(--gold);}
+  .ritual-actions{display:flex; flex-wrap:wrap; gap:10px; margin-top:22px;}.ritual-actions button,.theory-form button{border:1px solid rgba(216,169,78,.55); border-radius:999px; padding:11px 15px; background:rgba(216,169,78,.1); color:var(--cream); font:700 10px/1 Inter,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase; cursor:pointer;}.ritual-actions button:hover,.ritual-actions button:focus-visible,.theory-form button:hover,.theory-form button:focus-visible{background:rgba(216,169,78,.22); outline:1px solid var(--gold); outline-offset:2px;}
+  .theory-form{margin-top:20px;}.theory-form input{width:100%; box-sizing:border-box; padding:13px; border:1px solid rgba(237,233,222,.28); border-radius:8px; background:rgba(0,0,0,.22); color:var(--cream); font:16px/1.3 Fraunces,Georgia,serif;}.theory-counter{margin:6px 0 13px; color:rgba(237,233,222,.48); font-size:10px; text-align:right;}.listener-feed{margin-top:22px; border-top:1px solid rgba(237,233,222,.13);}.listener-theory{display:grid; grid-template-columns:20px 1fr; gap:9px; padding:12px 0; border-bottom:1px solid rgba(237,233,222,.1); color:rgba(237,233,222,.82); font-size:13px; line-height:1.4;}.listener-dot{width:17px; height:17px; margin-top:2px; border-radius:50%; background:var(--maroon);}.listener-meta{display:block; margin-bottom:3px; color:var(--gold); font-size:9px; letter-spacing:.1em; text-transform:uppercase;}
+  .ritual-summary{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:20px 0;}.ritual-stat{padding:12px; border:1px solid rgba(237,233,222,.12); border-radius:8px; color:rgba(237,233,222,.7); font-size:11px;}.ritual-stat b{display:block; margin-top:4px; color:var(--cream); font:700 19px/1 Fraunces,Georgia,serif;}
+  @media(max-width:700px){
+    body:not(.edit-mode) #app{display:block; height:100dvh;}
+    body:not(.edit-mode) #stage-wrap{display:block; width:100vw; height:100dvh; overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; touch-action:pan-x; -webkit-overflow-scrolling:touch;}
+    body:not(.edit-mode) #stage{width:calc(100dvh * 16 / 9); min-width:100vw; height:100dvh; box-shadow:none;}
+    body:not(.edit-mode) #ui-layer{position:fixed; inset:0; width:100vw; height:100dvh; z-index:9;}
+    .ui-pill{border-radius:9px; padding:7px 10px;}
+    .ui-top-left{top:max(10px, env(safe-area-inset-top)); left:10px; max-width:calc(100vw - 138px);}
+    .ui-top-left .title{font-size:clamp(16px,5.2vw,21px);}
+    .ui-top-left .subtitle{display:none;}
+    .ui-top-right{top:max(10px, env(safe-area-inset-top)); right:10px;}
+    .ui-top-right .countdown{font-size:11px; letter-spacing:.04em;}
+    .entry-replay{top:calc(max(10px, env(safe-area-inset-top)) + 42px); right:10px; width:32px; height:32px; font-size:15px;}
+    .voice-warm-status{top:calc(max(10px, env(safe-area-inset-top)) + 82px); right:10px; font-size:8px;}
+    #voice-mute{top:calc(max(10px, env(safe-area-inset-top)) + 104px); right:10px; width:32px; height:30px;}
+    body:not(.edit-mode) #entry-card{position:fixed; inset:0; width:100vw; height:100dvh; padding:clamp(24px,7vw,44px) 24px;}
+    .entry-card-copy{max-width:430px;}
+    .entry-card-kicker{margin-bottom:18px; font-size:9px; letter-spacing:.19em;}
+    .entry-card-main{font-size:clamp(25px,7vw,38px); line-height:1.18;}
+    .entry-card-main.second{margin-top:10px;}
+    .entry-card-instruction{margin-top:22px; font-size:clamp(10px,3.3vw,13px); letter-spacing:.085em;}
+    .entry-card-skip{width:64px; height:64px; margin-top:28px; font-size:48px;}
+    .presence{top:calc(max(10px, env(safe-area-inset-top)) + 42px); left:10px; font-size:8px;}
+    .window-label{max-width:130px; font-size:7px;}
+    .ui-bottom-left{bottom:max(10px, env(safe-area-inset-bottom)); left:10px;}
+    .ui-bottom-right{bottom:max(10px, env(safe-area-inset-bottom)); right:10px;}
+    .ui-bottom-left .room-name,.ui-bottom-right .clue-count{font-size:10px; letter-spacing:.055em;}
+    #topic-toasts{position:fixed; right:10px; bottom:58px; max-width:calc(100vw - 20px);}
+    #exit-buttons{bottom:calc(max(10px, env(safe-area-inset-bottom)) + 40px);}
+    #leave-portal{position:fixed; bottom:calc(max(10px, env(safe-area-inset-bottom)) + 42px); padding:8px 12px; font-size:9px;}
+    .ritual-shell{padding:12px; align-items:start;}.ritual-card{width:100%; max-height:calc(100dvh - 24px); padding:24px 18px;}.vote-grid{grid-template-columns:1fr; margin:18px 0;}.vote-bar{grid-template-columns:88px 1fr 32px; font-size:10px;}.ritual-summary{grid-template-columns:1fr 1fr;}.ritual-copy{font-size:16px;}
+    .exit-btn{padding:9px 15px; font-size:11px;}
+    .mobile-pan-hint{display:block; position:fixed; top:54px; left:50%; transform:translateX(-50%); padding:4px 8px; border-radius:999px; background:rgba(11,10,16,.72); color:rgba(237,233,222,.75); font-size:8px; letter-spacing:.1em; text-transform:uppercase;}
+    #conversation-root{position:fixed; inset:0; width:100vw; height:100dvh; z-index:14;}
+    body.conversation-open #sprites-layer{z-index:13;}
+    .sprite.conversation-active{position:fixed; z-index:2;}
+    .conversation-nameplate{top:auto; right:5%; bottom:56%; z-index:4; width:90%; text-align:center; pointer-events:none;}
+    .conversation-nameplate .name{font-size:clamp(24px,7vw,32px); text-shadow:0 2px 10px rgba(0,0,0,.85);}
+    .conversation-nameplate .rule{margin:10px auto 0;}
+    .conversation-panel{z-index:3; min-height:49%; max-height:55%; padding:51px 5% 20px;}
+    .conversation-copy{margin-left:0; max-width:none;}
+    .question-budget{top:11px; right:5%; font-size:8px; gap:5px;}
+    .conversation-end{top:11px; left:5%; font-size:8px; padding:7px 8px;}
+    .conversation-mute{top:10px; left:calc(5% + 116px); width:28px; height:28px;}
+    .dialogue-line{min-height:3.45em; max-height:3.45em; padding-right:0; font-size:clamp(20px,5.5vw,27px);}
+    .gate-tag{margin-top:8px; font-size:8px; padding:5px 7px;}
+    .topic-area{margin-top:10px;}
+    .topic-menu{gap:6px;}
+    .topic-chip{padding:8px 10px; font-size:10px;}
+    .free-question{margin-top:9px;}
+    .free-question input{padding:9px; font-size:12px;}
+    body.no-hover .sprite.talk-ready .talk-prompt{display:block;}
+  }
+  @media(prefers-reduced-motion:reduce){
+    body.conversation-open #bg, .sprite.conversation-active, .conversation-content, .topic-area{transition:none;}
+    .entry-card-line{animation-duration:.01ms;}
+  }
+
+  /* =====================================================================
+     EDITOR — everything below is scoped to body.edit-mode so normal mode is
+     byte-for-byte unaffected. The stage and renderer are shared, not cloned.
+  ===================================================================== */
+  #editor-panel{display:none;}
+  body.edit-mode #app{justify-content:flex-start;}
+  body.edit-mode #editor-panel{
+    display:flex; flex-direction:column; width:280px; min-width:280px; height:100vh;
+    background:var(--panel); border-right:1px solid var(--line); overflow-y:auto;
+    font-size:12px;
+  }
+  body.edit-mode #stage-wrap{
+    flex:1; height:100vh; display:flex; align-items:center; justify-content:center; min-width:0;
+  }
+  body.edit-mode #stage{
+    width:min(100%, calc(100vh * 16 / 9));
+    height:min(100vh, calc((100vw - 280px) * 9 / 16));
+  }
+  body.edit-mode #editor-overlay{display:block;}
+  #stage-wrap{width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+
+  .ed-sec{border-bottom:1px solid var(--line); padding:12px 14px;}
+  .ed-sec h3{margin:0 0 9px; font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:#8B8FA0; font-weight:700;}
+  .ed-row{display:flex; gap:6px;}
+  .ed-btn{
+    flex:1; background:rgba(255,255,255,.04); border:1px solid var(--line); color:var(--cream);
+    padding:8px 10px; border-radius:7px; cursor:pointer; font-size:11px; font-weight:600;
+    letter-spacing:.08em; text-transform:uppercase; font-family:inherit; transition:.15s;
+  }
+  .ed-btn:hover{background:rgba(216,169,78,.14); border-color:rgba(216,169,78,.5);}
+  .ed-btn.active{background:var(--gold); color:#1a1508; border-color:var(--gold);}
+  .ed-btn.danger:hover{background:rgba(200,60,50,.22); border-color:rgba(200,60,50,.6);}
+  .ed-btn.sm{padding:6px 8px; font-size:10px;}
+
+  .ed-item{
+    display:flex; align-items:center; gap:9px; padding:6px; border-radius:7px; cursor:pointer;
+    border:1px solid transparent; margin-bottom:4px;
+  }
+  .ed-item:hover{background:rgba(255,255,255,.05);}
+  .ed-item.active{background:rgba(216,169,78,.14); border-color:rgba(216,169,78,.45);}
+  .ed-item .meta{min-width:0; flex:1;}
+  .ed-item .nm{font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .ed-item .sub{font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:#8B8FA0; margin-top:2px;}
+  .ed-item .sub.here{color:var(--gold);}
+  .ed-item .sub.dim{color:#5A5E6B;}
+
+  .ed-thumb{width:52px; height:29px; border-radius:4px; background-size:cover; background-position:center; flex-shrink:0; border:1px solid var(--line);}
+  .ed-sprite-thumb{
+    width:32px; height:44px; flex-shrink:0; border-radius:4px; border:1px solid var(--line);
+    background-image:
+      linear-gradient(45deg,#2a2a32 25%,transparent 25%,transparent 75%,#2a2a32 75%),
+      linear-gradient(45deg,#2a2a32 25%,transparent 25%,transparent 75%,#2a2a32 75%);
+    background-size:10px 10px; background-position:0 0,5px 5px; background-color:#1b1b22;
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+  }
+  .ed-sprite-thumb img{max-width:100%; max-height:100%; object-fit:contain; display:block;}
+
+  .ed-field{display:flex; align-items:center; gap:8px; margin-bottom:7px;}
+  .ed-field label{width:58px; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:#8B8FA0; flex-shrink:0;}
+  .ed-field input{
+    flex:1; min-width:0; background:#0E0D14; border:1px solid var(--line); color:var(--cream);
+    padding:6px 8px; border-radius:5px; font-size:12px; font-family:inherit;
+    font-variant-numeric:tabular-nums;
+  }
+  .ed-field input:focus{outline:none; border-color:var(--gold);}
+  .ed-field input:disabled{color:#6B6F7C; background:#0A0910;}
+  .ed-field input.text{font-variant-numeric:normal;}
+
+  .ed-hint{font-size:10px; color:#6B6F7C; line-height:1.55;}
+  .ed-slider{width:100%; accent-color:var(--gold);}
+  /* Keep the unsaved marker scoped to the editor panel. A previous body-level state
+     class could collide with this tiny indicator and collapse the whole page after
+     selecting or dragging an item. */
+  .ed-dirty-dot{
+    display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--gold);
+    margin-left:6px; vertical-align:middle; visibility:hidden;
+  }
+  #editor-panel.is-dirty .ed-dirty-dot{visibility:visible;}
+  .ed-stats{font-size:9.5px; color:#6B6F7C; font-variant-numeric:tabular-nums; line-height:1.6;}
+
+  /* ---- selection chrome (inside stage, above everything) ---- */
+  .sel-box{position:absolute; border:1px solid var(--gold); pointer-events:none;
+    box-shadow:0 0 0 1px rgba(0,0,0,.4), 0 0 14px rgba(216,169,78,.3);}
+  .sel-handle{
+    position:absolute; width:10px; height:10px; background:var(--gold); border:1px solid #1a1508;
+    border-radius:2px; pointer-events:auto; z-index:2;
+  }
+  .sel-handle.nw{cursor:nwse-resize;} .sel-handle.ne{cursor:nesw-resize;}
+  .sel-handle.sw{cursor:nesw-resize;} .sel-handle.se{cursor:nwse-resize;}
+  .sel-handle.n,.sel-handle.s{cursor:ns-resize;} .sel-handle.e,.sel-handle.w{cursor:ew-resize;}
+  .sel-toolbar{
+    position:absolute; display:flex; align-items:center; gap:7px; pointer-events:auto;
+    background:rgba(11,10,16,.92); border:1px solid rgba(216,169,78,.5); border-radius:7px;
+    padding:4px 6px 4px 9px; white-space:nowrap; transform:translateY(-100%); margin-top:-8px;
+  }
+  .sel-toolbar .nm{font-size:10px; letter-spacing:.12em; text-transform:uppercase; font-weight:700; color:var(--gold);}
+  .sel-toolbar button{
+    width:18px; height:18px; border-radius:4px; border:1px solid var(--line);
+    background:rgba(255,255,255,.05); color:var(--cream); cursor:pointer; font-size:10px; line-height:1; padding:0;
+  }
+  .sel-toolbar button:hover{background:rgba(200,60,50,.3); border-color:rgba(200,60,50,.7);}
+
+  /* edit-mode hotspot visibility */
+  body.edit-mode.mode-hotspots .object-hotspot{
+    background:rgba(216,169,78,.17); box-shadow:inset 0 0 0 1px rgba(216,169,78,.75);
+  }
+  body.edit-mode.mode-hotspots .object-hotspot .label-pill{opacity:1;}
+  body.edit-mode.mode-hotspots .object-hotspot .dot{display:none;}
+  body.edit-mode.mode-hotspots .sprite{opacity:.45; pointer-events:none;}
+  body.edit-mode.mode-hotspots .sprite img{filter:none !important; transform:none !important;}
+  body.edit-mode.mode-characters .object-hotspot{opacity:.28; pointer-events:none;}
+  body.edit-mode.mode-characters .exit-hotspot{opacity:.3; pointer-events:none;}
+  body.edit-mode.mode-hotspots .exit-hotspot{opacity:.5; pointer-events:none;}
+  body.edit-mode .sprite{animation:none;}
+  body.edit-mode .sprite img{transition:none;}
+  body.edit-mode.dragging *{user-select:none;}
+
+  /* guides */
+  #guides-layer{position:absolute; inset:0; pointer-events:none; display:none;}
+  body.edit-mode.guides-on #guides-layer{display:block;}
+  #guides-layer .gl{position:absolute; background:rgba(237,233,222,.22);}
+  #guides-layer .gl.v{width:1px; top:0; bottom:0;}
+  #guides-layer .gl.h{height:1px; left:0; right:0;}
+  #baseline{
+    position:absolute; left:0; right:0; height:14px; margin-top:-7px; pointer-events:auto;
+    cursor:ns-resize; display:none;
+  }
+  body.edit-mode.guides-on #baseline{display:block;}
+  #baseline::after{content:""; position:absolute; left:0; right:0; top:6px; height:2px;
+    background:rgba(123,43,43,.9); box-shadow:0 0 8px rgba(216,169,78,.5);}
+  #baseline .tag{
+    position:absolute; right:6px; top:-14px; font-size:9px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--gold); background:rgba(11,10,16,.85); padding:2px 6px; border-radius:4px;
+  }
+
+  /* preview mode hides all editor chrome */
+  body.edit-mode.previewing #editor-panel{display:none;}
+  body.edit-mode.previewing #editor-overlay{display:none;}
+  body.edit-mode.previewing #guides-layer,
+  body.edit-mode.previewing #baseline{display:none;}
+  body.edit-mode.previewing #stage{width:min(100vw, calc(100vh * 16 / 9)); height:min(100vh, calc(100vw * 9 / 16));}
+  body.edit-mode.previewing .sprite{opacity:1 !important;}
+  body.edit-mode.previewing .object-hotspot{background:none !important; box-shadow:none !important; opacity:1 !important;}
+  body.edit-mode.previewing .object-hotspot .label-pill{opacity:0 !important;}
+  body.edit-mode.previewing .object-hotspot .dot{display:block !important;}
+  body.edit-mode.previewing .exit-hotspot{opacity:1 !important;}
+  /* Writer Studio — intentionally a separate, crisp creator surface. */
+  #writer-studio{display:none;min-height:100dvh;background:#f5f2ea;color:#21201d;font-family:Inter,system-ui,sans-serif;letter-spacing:normal;overflow:auto}
+  body.writer-studio-open #app{display:none} body.writer-studio-open #writer-studio{display:block}
+  .ws-shell{max-width:1360px;margin:auto;padding:22px 28px 64px}.ws-header{display:flex;gap:18px;align-items:flex-start;justify-content:space-between;padding-bottom:18px;border-bottom:1px solid #d9d1c1}.ws-brand{display:flex;align-items:center;gap:12px}.ws-mark{display:grid;place-items:center;width:36px;height:36px;background:#26231f;color:#f5f2ea;font-weight:900;border-radius:4px}.ws-eyebrow{margin:0;color:#806b42;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.ws-header h1{margin:4px 0 0;font:700 clamp(22px,3vw,34px)/1 Georgia,serif;letter-spacing:-.03em}.ws-subtitle{margin:7px 0 0;color:#676057;font-size:13px}.ws-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}.ws-button,.ws-toggle{border:1px solid #cfc5b2;background:#fffdf9;color:#28251f;padding:9px 12px;border-radius:4px;font:800 10px/1 Inter,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}.ws-button.primary,.ws-toggle.active{background:#d8a94e;border-color:#c18c29;color:#21190d}.ws-button:focus-visible,.ws-toggle:focus-visible,.ws-details summary:focus-visible{outline:2px solid #d8a94e;outline-offset:3px}.ws-status{display:flex;align-items:center;gap:6px;margin-top:9px;justify-content:flex-end;color:#746d62;font-size:11px}.ws-dot{width:7px;height:7px;border-radius:50%;background:#8b8b84}.ws-dot.connected{background:#5d9366;box-shadow:0 0 0 3px #dcebdc}.ws-callout{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0;padding:11px 14px;border-left:3px solid #d8a94e;background:#fffaf0;color:#675a43;font-size:12px}.ws-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}.ws-card{background:#fffdf9;border:1px solid #ded7ca;border-radius:5px;padding:18px;box-shadow:0 2px 8px rgba(41,32,18,.035)}.ws-card.wide{grid-column:1/-1}.ws-card h2{margin:0 0 3px;font:700 19px/1.15 Georgia,serif;letter-spacing:-.02em}.ws-card h3{margin:18px 0 9px;color:#746543;font-size:10px;letter-spacing:.14em;text-transform:uppercase}.ws-note{margin:0 0 15px;color:#726b61;font-size:12px;line-height:1.45}.ws-bar-row{display:grid;grid-template-columns:minmax(86px,130px) 1fr 50px;gap:9px;align-items:center;margin:9px 0;font-size:12px}.ws-bar{height:8px;background:#eee9df;overflow:hidden;border-radius:999px}.ws-bar i{display:block;height:100%;background:#d8a94e;border-radius:999px}.ws-bar-row.live{color:#7a5517;font-weight:800}.ws-pulse{display:inline-block;margin-left:5px;color:#a7751e;font-size:10px;animation:wsPulse 1.3s ease-out 1}@keyframes wsPulse{0%{opacity:0;transform:translateY(4px)}30%{opacity:1}100%{opacity:0;transform:translateY(-5px)}}.ws-chart{width:100%;height:146px;margin-top:10px;background:linear-gradient(#f7f4ed 1px,transparent 1px);background-size:100% 36px;border-bottom:1px solid #ddd5c7}.ws-chart svg{width:100%;height:100%;overflow:visible}.ws-insight{margin:16px 0 0;padding:11px 13px;background:#292720;color:#f4eddf;font:italic 14px/1.4 Georgia,serif;border-radius:3px}.ws-rank{display:grid;grid-template-columns:1fr 90px;gap:8px;padding:9px 0;border-bottom:1px solid #eee9df;font-size:12px}.ws-rank:last-child{border:0}.ws-details{margin-top:5px}.ws-details summary{cursor:pointer;color:#6f572b;font-size:11px;font-weight:800}.ws-details ul{padding-left:17px;color:#625c53;font-size:12px}.ws-stack{display:flex;height:11px;overflow:hidden;border-radius:999px;margin:10px 0}.ws-stack i{display:block;height:100%}.ws-object-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 14px}.ws-object-grid .ws-bar-row{grid-template-columns:90px 1fr 36px;margin:5px 0;font-size:11px}.ws-kpis{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.ws-kpi{padding:12px;background:#f4f0e8;border-left:3px solid #d8a94e}.ws-kpi b{display:block;font:700 24px/1 Georgia,serif}.ws-kpi span{color:#777066;font-size:10px;letter-spacing:.09em;text-transform:uppercase}.ws-feed{max-height:250px;overflow:auto;border-top:1px solid #ebe5da}.ws-feed article{padding:11px 0;border-bottom:1px solid #ebe5da;font-size:12px;line-height:1.42}.ws-feed article.live{border-left:3px solid #d8a94e;padding-left:10px}.ws-feed strong{color:#826429;font-size:10px;letter-spacing:.1em;text-transform:uppercase}.ws-meters{display:grid;gap:10px}.ws-meter{display:grid;grid-template-columns:66px 1fr 1fr;gap:8px;align-items:center;font-size:11px}.ws-meter b{font-size:12px}.ws-recs{margin:8px 0 0;padding:0;list-style:none}.ws-recs li{padding:10px 0;border-top:1px solid #eee9df;color:#454039;font-size:13px;line-height:1.4}.ws-footer{margin:18px 0;color:#746d62;font-size:11px;line-height:1.5}.ws-world{margin-top:20px;border-top:2px solid #26231f;padding-top:18px}.ws-world-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}.ws-world-head h2{font:700 25px/1 Georgia,serif;margin:0}.ws-stage-list{display:grid;gap:9px;margin-top:16px}.ws-stage{background:#fffdf9;border:1px solid #ded7ca;border-left:4px solid #bab4a9;padding:13px}.ws-stage.running{border-left-color:#d8a94e}.ws-stage.done{border-left-color:#608f68}.ws-stage-top{display:flex;gap:12px;align-items:baseline;justify-content:space-between}.ws-stage-title{font-weight:800;font-size:12px;letter-spacing:.08em;text-transform:uppercase}.ws-stage-meta{color:#756f65;font-size:11px}.ws-stage-status{color:#786b52;font-size:10px;font-weight:800;text-transform:uppercase}.ws-stage.done .ws-stage-status{color:#46754f}.ws-stage pre{white-space:pre-wrap;word-break:break-word;max-height:240px;overflow:auto;margin:10px 0 0;padding:11px;background:#26231f;color:#e9e0d0;font:11px/1.45 ui-monospace,Consolas,monospace;border-radius:3px}.ws-images{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.ws-images figure{margin:0}.ws-images img{width:100%;display:block;border:1px solid #d8cfbf;border-radius:3px}.ws-images figcaption{margin-top:5px;color:#746d62;font-size:10px}.ws-preview{position:relative;overflow:hidden;min-height:190px;background:#342620}.ws-preview img{width:100%;height:100%;object-fit:cover;display:block;opacity:.74}.ws-preview div{position:absolute;inset:auto 14px 14px;color:#fff5df;text-shadow:0 2px 8px #000;font:700 17px/1.1 Georgia,serif}.ws-preview small{display:block;margin-top:5px;font:10px Inter,system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase}.ws-download{margin-top:10px}.writer-toggle{position:absolute;top:2.7%;right:12.5%;z-index:8;pointer-events:auto;background:rgba(12,10,17,.74);color:var(--cream);border:1px solid rgba(216,169,78,.45);border-radius:999px;padding:7px 10px;font:700 9px Inter,system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+  @media(max-width:700px){.writer-toggle{right:5%;top:14%;}.ws-shell{padding:15px 12px 40px}.ws-header,.ws-world-head{align-items:flex-start;flex-direction:column}.ws-actions,.ws-status{justify-content:flex-start}.ws-grid{grid-template-columns:1fr}.ws-card{padding:14px}.ws-card.wide{grid-column:auto}.ws-bar-row{grid-template-columns:91px 1fr 42px}.ws-object-grid{grid-template-columns:1fr}.ws-meter{grid-template-columns:58px 1fr 1fr}.ws-images{grid-template-columns:1fr}.ws-callout{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="editor-panel"></aside>
+  <div id="stage-wrap">
+    <div id="stage">
+      <img id="bg" alt="">
+      <div class="vignette"></div>
+      <div class="grain"></div>
+      <div id="sprites-layer"></div>
+      <div id="hotspots-layer"></div>
+      <div id="ui-layer">
+        <div class="ui-top-left ui-pill">
+          <div class="title" id="ui-title"></div>
+          <div class="subtitle" id="ui-subtitle"></div>
+        </div>
+        <button class="writer-toggle" id="writer-studio-toggle" type="button">Writer Studio</button>
+        <div class="ui-top-right ui-pill">
+          <div class="countdown" id="ui-countdown">OPEN FOR 03:47:12</div>
+          <div class="window-label" id="ui-window-label"></div>
+        </div>
+        <div class="presence"><span class="presence-dot" aria-hidden="true"></span><span id="ui-presence">1,284 listeners inside</span></div>
+        <button class="ui-pill entry-replay" id="entry-replay" type="button" aria-label="Replay portal introduction" title="Replay introduction">?</button>
+        <div class="voice-warm-status" id="voice-warm-status" aria-live="polite"></div>
+        <button class="ui-pill" id="voice-mute" type="button" aria-label="Mute character voices" aria-pressed="false" title="Mute character voices"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4Z"></path><path d="M16 9a4 4 0 0 1 0 6"></path><path d="M18.5 6.5a7.5 7.5 0 0 1 0 11"></path></svg></button>
+        <div class="ui-bottom-left ui-pill">
+          <div class="room-name" id="ui-room-name"></div>
+        </div>
+        <div class="ui-bottom-right ui-pill">
+          <button class="clue-count" id="ui-clue-count" type="button" aria-label="Open investigation journal">CLUES <b>0</b> / 10</button>
+        </div>
+        <div id="topic-toasts" aria-live="polite" aria-label="New questions unlocked"></div>
+        <div class="mobile-pan-hint">Swipe to explore</div>
+        <div id="exit-buttons"></div>
+        <button id="leave-portal" type="button">Leave the portal</button>
+      </div>
+      <div id="editor-overlay">
+        <div id="guides-layer">
+          <div class="gl v" style="left:33.333%"></div>
+          <div class="gl v" style="left:66.666%"></div>
+          <div class="gl h" style="top:33.333%"></div>
+          <div class="gl h" style="top:66.666%"></div>
+        </div>
+        <div id="baseline"><span class="tag">floor line</span></div>
+        <div id="sel-chrome"></div>
+      </div>
+      <div id="fade-overlay"></div>
+      <div id="conversation-root"></div>
+      <div id="ritual-root"></div>
+      <div id="entry-card"></div>
+    </div>
+  </div>
+  <div id="modal-root"></div>
+</div>
+
+<main id="writer-studio" aria-label="Writer Studio"></main>
+
+<script src="config.js"></script>
+<script src="world_data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script>
+(function(){
+/* =====================================================================
+   POCKET PORTAL — shell + scene editor.
+   The renderer below is the ONLY renderer. Edit mode layers selection
+   chrome on top of it and mutates WORK; it never re-implements drawing,
+   so the editor is pixel-identical to play mode by construction.
+===================================================================== */
+const EDIT_MODE = new URLSearchParams(location.search).get('edit') === '1';
+const PORTAL_WINDOW = {
+  enabled:true,
+  demoMode:true,
+  closesInSeconds:13612,
+  nextEpisodeLabel:'Episode 3 drops when the portal closes'
+};
+/* Databricks is optional infrastructure: the listener path never awaits it. */
+const DBX = {enabled:true, proxy:"http://localhost:8787/sql", warehouseId:"7a91f4e516747541", table:"workspace.default.portal_events"};
+const DBX_SESSION_ID = (crypto.randomUUID ? crypto.randomUUID() : 'portal-'+Date.now()+'-'+Math.random().toString(16).slice(2));
+const dbxQueue = [];
+let dbxConnected = false, dbxFlushTimer = null;
+const LS_KEY = 'pocketportal.editor.draft.v1';
+const DEFAULT_EXIT_POS = {x:"88%", y:"40%", w:"10%", h:"34%"};
+const DEFAULT_CHAR_POS = {x:"50%", y:"35%", h:"50%"};
+
+/* ---------------- working state — the renderer's single source of truth --------------- */
+function buildWork(){
+  return {
+    characters: Object.fromEntries(Object.entries(PORTAL_WORLD.characters).map(([id,c]) => [id, {
+      room: c.room || null,
+      position: {...(c.position || DEFAULT_CHAR_POS)},
+      z: (typeof c.z === 'number') ? c.z : 0
+    }])),
+    objects: PORTAL_WORLD.objects.map(o => ({
+      id:o.id, room:o.room, label:o.label, text:o.text || "", clue:o.clue || "", vd:o.vd || "",
+      hotspot:{...o.hotspot}, isNew:false
+    }))
+  };
+}
+let WORK = buildWork();
+
+const state = {
+  roomId: (PORTAL_WORLD.rooms.find(r=>r.entry) || PORTAL_WORLD.rooms[0]).id,
+  seen: new Set()
+};
+
+/* Task 4 conversation state stays in memory only. Tasks 5–8 can build on these
+   narrow extension points without changing the room renderer or editor. */
+const foundClues = new Set();
+const PORTAL_EVENTS = [];
+const askedTopicsByCharacter = new Map();
+const conversationProgressByCharacter = new Map();
+const clueHistory = [];
+const announcedTopics = new Set();
+const FREE_TEXT_ENABLED = true;
+let conversation = null;
+
+window.PORTAL_EVENTS = PORTAL_EVENTS;
+window.PORTAL_FOUND_CLUES = foundClues;
+window.addPortalClue = clueId => {
+  if(typeof clueId !== 'string' || !clueId.trim()) return false;
+  return collectClue(clueId.trim());
+};
+window.removePortalClue = clueId => {
+  const removed = foundClues.delete(clueId);
+  if(conversation) renderConversationControls();
+  updateClueCounter();
+  return removed;
+};
+
+const el = {
+  stage: document.getElementById('stage'),
+  bg: document.getElementById('bg'),
+  sprites: document.getElementById('sprites-layer'),
+  hotspots: document.getElementById('hotspots-layer'),
+  exitButtons: document.getElementById('exit-buttons'),
+  fade: document.getElementById('fade-overlay'),
+  title: document.getElementById('ui-title'),
+  subtitle: document.getElementById('ui-subtitle'),
+  countdown: document.getElementById('ui-countdown'),
+  windowLabel: document.getElementById('ui-window-label'),
+  presence: document.getElementById('ui-presence'),
+  roomName: document.getElementById('ui-room-name'),
+  clueCount: document.getElementById('ui-clue-count'),
+  modalRoot: document.getElementById('modal-root'),
+  conversationRoot: document.getElementById('conversation-root'),
+  entryCard: document.getElementById('entry-card'),
+  entryReplay: document.getElementById('entry-replay'),
+  voiceWarmStatus: document.getElementById('voice-warm-status'),
+  voiceMute: document.getElementById('voice-mute'),
+  topicToasts: document.getElementById('topic-toasts'),
+  leavePortal: document.getElementById('leave-portal'),
+  ritualRoot: document.getElementById('ritual-root'),
+  writerStudio: document.getElementById('writer-studio'),
+  writerStudioToggle: document.getElementById('writer-studio-toggle'),
+  panel: document.getElementById('editor-panel'),
+  selChrome: document.getElementById('sel-chrome'),
+  baseline: document.getElementById('baseline')
+};
+
+const hasHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+const usesTouchSelection = !hasHover || window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+const usesTalkButton = () => usesTouchSelection && window.innerWidth < 700;
+document.body.classList.add(usesTouchSelection ? 'no-hover' : 'has-hover');
+
+function showEntryCard(){
+  if(EDIT_MODE) return;
+  warmPortalVoices();
+  el.entryCard.classList.remove('is-leaving');
+  el.entryCard.innerHTML = '<div class="entry-card-copy">'+
+    '<p class="entry-card-line entry-card-kicker">THE EVENING AFTER</p>'+
+    '<p class="entry-card-line entry-card-main first">The episodes are what Bua chose to tell you.</p>'+
+    '<p class="entry-card-line entry-card-main second">This is the evening she didn\'t.</p>'+
+    '<p class="entry-card-line entry-card-instruction">You are Bua. Walk the house. Ask what you like.</p>'+
+    '</div><button class="entry-card-skip" type="button" aria-label="Enter the portal" title="Enter the portal">›</button>';
+  requestAnimationFrame(() => el.entryCard.classList.add('is-visible'));
+}
+function hideEntryCard(){
+  el.entryCard.classList.remove('is-visible');
+  el.entryCard.classList.add('is-leaving');
+}
+el.entryCard.addEventListener('click', e => { if(e.target.closest('.entry-card-skip')) hideEntryCard(); });
+el.entryReplay.addEventListener('click', showEntryCard);
+
+/* sprite natural aspect (w/h), needed for aspect-locked scaling + width readout */
+const ASPECT = {};
+function preloadAll(){
+  const seen = new Set();
+  PORTAL_WORLD.rooms.forEach(r => { if(!seen.has(r.image)){ seen.add(r.image); new Image().src = r.image; } });
+  Object.entries(PORTAL_WORLD.characters).forEach(([id,c]) => {
+    const img = new Image();
+    img.onload = () => { ASPECT[id] = img.naturalWidth / img.naturalHeight; if(EDIT_MODE) renderOverlay(); };
+    img.src = c.sprite;
+  });
+}
+
+const num = v => parseFloat(v) || 0;
+const pct = n => n.toFixed(1) + '%';
+const getRoom = id => PORTAL_WORLD.rooms.find(r => r.id === id);
+const charsInRoom = roomId => Object.entries(WORK.characters)
+  .filter(([,c]) => c.room === roomId)
+  .sort((a,b) => (a[1].z||0) - (b[1].z||0));
+const objsInRoom = roomId => WORK.objects.filter(o => o.room === roomId);
+
+/* ---------------- shared renderer ---------------- */
+function buildSprite(charId){
+  const def = PORTAL_WORLD.characters[charId];
+  const w = WORK.characters[charId];
+  const wrap = document.createElement('div');
+  wrap.className = 'sprite';
+  wrap.dataset.charId = charId;
+  wrap.style.left = w.position.x;
+  wrap.style.top = w.position.y;
+  wrap.style.height = w.position.h;
+  wrap.tabIndex = 0;
+  wrap.setAttribute('role','button');
+  wrap.setAttribute('aria-label', def.label);
+
+  const img = document.createElement('img');
+  img.src = def.sprite; img.alt = def.label; img.draggable = false;
+
+  const pill = document.createElement('div');
+  pill.className = 'label-pill'; pill.textContent = def.label;
+
+  const ring = document.createElement('div'); ring.className = 'pulse-ring';
+  const talk = document.createElement('button');
+  talk.type = 'button'; talk.className = 'talk-prompt'; talk.textContent = 'Talk';
+  talk.setAttribute('aria-label', 'Talk to '+def.label);
+  wrap.append(img, pill, ring, talk);
+
+  if(EDIT_MODE){
+    wrap.addEventListener('pointerdown', e => beginSpriteDrag(e, charId));
+  } else {
+    talk.addEventListener('click', e => { e.stopPropagation(); openCharacter(charId); });
+    wrap.addEventListener('click', () => {
+      if(usesTalkButton()){
+        el.sprites.querySelectorAll('.sprite.talk-ready').forEach(node => node.classList.remove('talk-ready'));
+        wrap.classList.add('talk-ready');
+        return;
+      }
+      openCharacter(charId);
+    });
+    wrap.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openCharacter(charId); } });
+  }
+  return wrap;
+}
+
+function buildObjectHotspot(o){
+  const r = o.hotspot;
+  const wrap = document.createElement('div');
+  wrap.className = 'hotspot object-hotspot' + (num(r.x) + num(r.w)/2 > 55 ? ' flip' : '');
+  wrap.dataset.objId = o.id;
+  wrap.style.left = r.x; wrap.style.top = r.y; wrap.style.width = r.w; wrap.style.height = r.h;
+  wrap.tabIndex = 0;
+  wrap.setAttribute('role','button');
+  wrap.setAttribute('aria-label', o.label);
+
+  const dot = document.createElement('div'); dot.className = 'dot';
+  const pill = document.createElement('div'); pill.className = 'label-pill'; pill.textContent = o.label;
+  wrap.append(dot, pill);
+
+  if(EDIT_MODE){
+    wrap.addEventListener('pointerdown', e => beginHotspotDrag(e, o.id));
+  } else {
+    wrap.addEventListener('click', () => openObject(o.id));
+    wrap.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openObject(o.id); } });
+  }
+  return wrap;
+}
+
+function buildExitHotspot(exit){
+  const r = exit.pos || DEFAULT_EXIT_POS;
+  const centerX = num(r.x) + num(r.w)/2;
+  const dir = centerX >= 50 ? 'right' : 'left';
+  const wrap = document.createElement('div');
+  wrap.className = 'hotspot exit-hotspot dir-' + dir + (centerX > 55 ? ' flip' : '');
+  wrap.style.left = r.x; wrap.style.top = r.y; wrap.style.width = r.w; wrap.style.height = r.h;
+  wrap.tabIndex = 0;
+  wrap.setAttribute('role','button');
+  wrap.setAttribute('aria-label', exit.label);
+
+  const chev = document.createElement('div');
+  chev.className = 'chevron'; chev.textContent = dir === 'right' ? '\u203A' : '\u2039';
+  const pill = document.createElement('div');
+  pill.className = 'label-pill'; pill.textContent = exit.label;
+  wrap.append(chev, pill);
+
+  if(!EDIT_MODE){
+    wrap.addEventListener('click', () => goToRoom(exit.to));
+    wrap.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); goToRoom(exit.to); } });
+  }
+  return wrap;
+}
+
+/* Some exits (e.g. "back to the main hall") render as a fixed bottom button
+   instead of an on-scene hotspot box. Data-driven via exit.asButton. */
+function buildExitButton(exit){
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'exit-btn';
+  btn.innerHTML = '<span class="chev">‹</span><span>'+esc(exit.label)+'</span>';
+  btn.addEventListener('click', () => goToRoom(exit.to));
+  return btn;
+}
+
+function renderRoom(){
+  const room = getRoom(state.roomId);
+  el.bg.src = room.image;
+  el.bg.alt = room.name;
+  el.sprites.innerHTML = '';
+  el.hotspots.innerHTML = '';
+  el.exitButtons.innerHTML = '';
+
+  charsInRoom(room.id).forEach(([id]) => el.sprites.appendChild(buildSprite(id)));
+  objsInRoom(room.id).forEach(o => el.hotspots.appendChild(buildObjectHotspot(o)));
+  (room.exits || []).forEach(x => {
+    if(x.asButton) el.exitButtons.appendChild(buildExitButton(x));
+    else el.hotspots.appendChild(buildExitHotspot(x));
+  });
+
+  el.roomName.textContent = room.name;
+  if(EDIT_MODE){ renderPanel(); renderOverlay(); }
+}
+
+function goToRoom(toId, onArrive){
+  el.fade.style.transitionDuration = '250ms';
+  el.fade.style.opacity = '1';
+  setTimeout(() => {
+    state.roomId = toId;
+    renderRoom();
+    el.fade.style.transitionDuration = '350ms';
+    requestAnimationFrame(() => { el.fade.style.opacity = '0'; });
+    if(onArrive) requestAnimationFrame(onArrive);
+  }, 260);
+}
+
+/* ---------------- play-mode interaction routing ---------------- */
+function logPortalEvent(type, data){
+  const event={type, ...data, ts:new Date().toISOString()};
+  PORTAL_EVENTS.push(event);
+  queueDatabricksEvent(event);
+  if(document.body.classList.contains('writer-studio-open')) renderWriterStudio();
+}
+function isTopicAvailable(topic){ return !!(topic.always || foundClues.has(topic.requiresClue)); }
+function askedTopicsFor(charId){
+  if(!askedTopicsByCharacter.has(charId)) askedTopicsByCharacter.set(charId, new Set());
+  return askedTopicsByCharacter.get(charId);
+}
+function conversationProgressFor(charId){
+  if(!conversationProgressByCharacter.has(charId)){
+    conversationProgressByCharacter.set(charId, {hasOpened:false, questionsRemaining:3, questionsAsked:0, exhausted:false, lastAnswer:''});
+  }
+  return conversationProgressByCharacter.get(charId);
+}
+function clueDefinitions(){
+  const objectClues = PORTAL_WORLD.objects.filter(o => o.clue).map(o => ({
+    id:o.id, kind:'object', sourceLabel:o.label, room:o.room, text:o.clue
+  }));
+  const conversationClues = Object.entries(PORTAL_WORLD.characters).flatMap(([charId, character]) => character.topics
+    .filter(topic => topic.grantsClue).map(topic => ({
+      id:topic.grantsClue, kind:'conversation', character:charId, topicId:topic.id,
+      sourceLabel:character.name+' — '+topic.label, room:character.room, text:topic.clue || ''
+    })));
+  return [...objectClues, ...conversationClues];
+}
+function clueDefinition(clueId){ return clueDefinitions().find(clue => clue.id === clueId) || null; }
+function roomLabel(roomId){ return (PORTAL_WORLD.rooms.find(room => room.id === roomId) || {}).name || roomId; }
+function topicsUnlockedBy(clueId){
+  return Object.entries(PORTAL_WORLD.characters).flatMap(([charId, character]) => character.topics
+    .filter(topic => topic.requiresClue === clueId)
+    .map(topic => ({charId, topic, character})));
+}
+function playUnlockChime(){
+  if(portalVoiceMuted || !window.AudioContext && !window.webkitAudioContext) return;
+  try{
+    const AudioContextCtor=window.AudioContext || window.webkitAudioContext;
+    const context=new AudioContextCtor();
+    const gain=context.createGain(); gain.gain.setValueAtTime(.0001,context.currentTime); gain.gain.exponentialRampToValueAtTime(.035,context.currentTime+.015); gain.gain.exponentialRampToValueAtTime(.0001,context.currentTime+.35); gain.connect(context.destination);
+    [659,880].forEach((frequency,index)=>{ const oscillator=context.createOscillator(); oscillator.type='sine'; oscillator.frequency.value=frequency; oscillator.connect(gain); oscillator.start(context.currentTime+index*.07); oscillator.stop(context.currentTime+.36); });
+    setTimeout(()=>context.close(),500);
+  }catch(error){}
+}
+let topicToastStagger = 0;
+function showTopicUnlockToast(unlock){
+  if(announcedTopics.has(unlock.charId+':'+unlock.topic.id)) return;
+  announcedTopics.add(unlock.charId+':'+unlock.topic.id);
+  logPortalEvent('topic_unlocked', {character:unlock.charId, topic:unlock.topic.id});
+  const delay=topicToastStagger; topicToastStagger+=200;
+  setTimeout(()=>{
+    topicToastStagger=Math.max(0,topicToastStagger-200);
+    const toast=document.createElement('button'); toast.type='button'; toast.className='topic-toast';
+    const elsewhere=state.roomId !== unlock.character.room;
+    toast.innerHTML='<span class="topic-toast-kicker">New question unlocked</span><span class="topic-toast-name">'+esc(unlock.character.name)+' — '+esc(unlock.topic.label)+(elsewhere?' · '+esc(roomLabel(unlock.character.room)):'')+'</span>';
+    toast.addEventListener('click',()=>{
+      logPortalEvent('toast_clicked',{topic:unlock.topic.id});
+      toast.remove(); navigateToTopic(unlock.charId,unlock.topic.id);
+    });
+    el.topicToasts.appendChild(toast);
+    setTimeout(()=>toast.remove(),4000);
+  },delay);
+  playUnlockChime();
+}
+function collectClue(clueId, details={}){
+  if(!clueId || foundClues.has(clueId)) return false;
+  foundClues.add(clueId);
+  const definition=clueDefinition(clueId);
+  clueHistory.push({id:clueId, ...(definition || {}), ...details});
+  logPortalEvent('clue_granted',{clue:clueId, source:details.source || (definition && definition.kind) || 'unknown'});
+  topicsUnlockedBy(clueId).forEach(showTopicUnlockToast);
+  updateClueCounter();
+  warmPortalVoices();
+  if(conversation) renderConversationControls();
+  maybeAutoExitRitual();
+  return true;
+}
+function navigateToTopic(charId, topicId){
+  const character=PORTAL_WORLD.characters[charId]; if(!character) return;
+  const open=()=>openCharacter(charId,topicId);
+  const travel=()=>{
+    if(state.roomId === character.room) open();
+    else goToRoom(character.room,open);
+  };
+  if(conversation && conversation.charId !== charId){ closeConversation(); setTimeout(travel,460); }
+  else if(conversation){ conversation.focusTopicId=topicId; renderConversationControls(); }
+  else travel();
+}
+function prefersReducedMotion(){ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+
+function responseEntry(value){
+  return typeof value === 'string' ? {t:value, vd:''} : value;
+}
+function fallbackFor(character, topicIdOrFreeText){
+  return responseEntry((typeof topicIdOrFreeText === 'string' && character.fallbackResponses[topicIdOrFreeText]) || character.unknownTopic);
+}
+function responseText(payload){
+  if(typeof payload.output_text === 'string' && payload.output_text.trim()) return payload.output_text.trim();
+  const parts = (payload.output || []).flatMap(item => item.content || [])
+    .filter(part => part.type === 'output_text' && typeof part.text === 'string')
+    .map(part => part.text.trim());
+  return parts.join('\n').trim();
+}
+const freeTextResponseCache = new Map();
+const GATE_SCRUB_PATTERNS = [
+  /the photograph deleted from karan's phone at 12:40\.?/gi, /deleted photograph/gi,
+  /deleted photo/gi, /karan's phone passcode/gi, /passcode/gi, /photograph/gi, /photo/gi,
+  /phone/gi, /at 12:40/gi, /together in a car/gi
+];
+function normaliseFreeQuestion(question){ return String(question||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function scrubForbiddenReferences(value, source){
+  let clean=String(value||''), changed=false;
+  GATE_SCRUB_PATTERNS.forEach(pattern=>{
+    if(pattern.test(clean)){ changed=true; clean=clean.replace(pattern,'that later evidence'); }
+    pattern.lastIndex=0;
+  });
+  if(changed) logPortalEvent('gated_context_strip',{source});
+  return clean;
+}
+function buildGatedContext(charId, listenerEpisode){
+  const character=PORTAL_WORLD.characters[charId];
+  if(!character) return null;
+  const listenerFacts=(PORTAL_WORLD.progressCap.knownFacts||[]).slice();
+  const witnessFacts=new Set(character.knows||[]);
+  const allowedFacts=listenerFacts.filter(fact=>witnessFacts.has(fact));
+  const witnessWithheld=listenerFacts.length-allowedFacts.length;
+  const progressWithheld=(PORTAL_WORLD.progressCap.forbidden||[]).length;
+  const safeList=list=>(list||[])
+    .filter(item=>!/(photo|photograph|phone|passcode|12:40|together in a car)/i.test(String(item)))
+    .map(item=>scrubForbiddenReferences(item,'context'));
+  return {
+    persona:character.persona,
+    relationship:character.relationship||'a member of this household',
+    allowedFacts:safeList(allowedFacts),
+    doesNotKnow:safeList(character.doesNotKnow),
+    conceals:charId==='ritu'?safeList((character.conceals||[]).filter(item=>!/(phone|vikram)/i.test(String(item)))):[],
+    coverStory:charId==='ritu'?scrubForbiddenReferences(character.coverStory,'context'):'',
+    deflection:character.deflection||'',
+    addressTerm:character.addressTerm||'Bua',
+    listenerEpisode:listenerEpisode||PORTAL_WORLD.unlockAfterEpisode,
+    withheldCount:progressWithheld+witnessWithheld,
+    withheld:{progress:progressWithheld,witness:witnessWithheld}
+  };
+}
+function listForPrompt(values){ return values&&values.length ? values.map(value=>'- '+value).join('\n') : '- Nothing further.'; }
+function buildGatedSystemPrompt(charId, context){
+  const character=PORTAL_WORLD.characters[charId];
+  let prompt='You are '+character.name+', '+context.persona+'\n'+
+    'You are speaking to Bua. Your relationship to her is '+context.relationship+'. You address her as "'+context.addressTerm+'".\n'+
+    'It is the evening after Karan Oberoi was found dead. The wedding was cancelled this morning.\n\n'+
+    'THESE ARE THE ONLY THINGS YOU KNOW. You have no other information:\n'+listForPrompt(context.allowedFacts)+'\n\n'+
+    'YOU GENUINELY DO NOT KNOW:\n'+listForPrompt(context.doesNotKnow)+'\n'+
+    'If asked about these, react with honest confusion or ignorance, in character. Never invent an answer. Never speculate about things outside your knowledge.\n';
+  if(charId==='ritu') prompt+='\nYOU ARE HIDING:\n'+listForPrompt(context.conceals)+'\n\n'+
+    'YOUR ACCOUNT OF THAT NIGHT:\n'+context.coverStory+'\n'+
+    'You never confess and never contradict anything in your known facts. When pressed you do not become angry — '+context.deflection+'\n';
+  prompt+='\nSTYLE: Reply in 1-2 short sentences of simple spoken Indian English. Soap-opera register — direct, emotional, plain vocabulary. Stay in character absolutely. Never mention being an AI, a model, instructions, episodes, or a story. If the question makes no sense in your world, respond as a confused person would.\n'+
+    'Return only valid JSON: {"response":"...","vd":"emotion + physical delivery + pace + intent","answerType":"ANSWERED"|"DOESNT_KNOW"|"DEFLECTED"|"OUT_OF_WORLD","topicTag":"2-4 word label"}.';
+  return scrubForbiddenReferences(prompt,'prompt');
+}
+function assertGatedPrompt(prompt){
+  const blocked=(PORTAL_WORLD.progressCap.forbidden||[]).some(fact=>prompt.toLowerCase().includes(fact.toLowerCase()))||/\b(photo|photograph|phone|passcode)\b|12:40|together in a car/i.test(prompt);
+  if(blocked){ logPortalEvent('gated_context_strip',{source:'prompt_assert'}); return scrubForbiddenReferences(prompt,'prompt_assert'); }
+  return prompt;
+}
+function topicMatchForFreeText(character, question){
+  const q=normaliseFreeQuestion(question);
+  const aliases={thatnight:['last night','midnight','upstairs'],whatyousaw:['what you saw','saw'],karan:['karan'],ritu:['ritu'],naina:['naina'],father:['father','papa'],tea:['tea','tray','glass'],keys:['key','keys'],vikram:['vikram'],wedding:['wedding'],ring:['ring'],tornphoto:['torn photograph']};
+  const topic=character.topics.find(item=>(aliases[item.id]||[item.label.toLowerCase()]).some(term=>q.includes(term)));
+  return topic||null;
+}
+function isOutOfWorldQuestion(question){ return /\b(ignore|instruction|prompt|system|what year|write.*code|javascript|python|api key)\b/i.test(String(question||'')); }
+function localFreeTextFallback(charId, question){
+  const character=PORTAL_WORLD.characters[charId];
+  if(isOutOfWorldQuestion(question)) return {...fallbackFor(character,''),answerType:'OUT_OF_WORLD',topicTag:'Out of world'};
+  if(charId==='ritu'&&/\b(kill|killed|murder|murdered|poison)\b/i.test(String(question||''))){
+    return {...fallbackFor(character,'thatnight'),answerType:'DEFLECTED',topicTag:'Direct accusation'};
+  }
+  const topic=topicMatchForFreeText(character,question);
+  const response=topic?fallbackFor(character,topic.id):fallbackFor(character,'');
+  return {...response,answerType:topic?'ANSWERED':'DOESNT_KNOW',topicTag:topic?topic.label:'Unknown question'};
+}
+function cleanLiveResponse(payload, fallback){
+  const types=new Set(['ANSWERED','DOESNT_KNOW','DEFLECTED','OUT_OF_WORLD']);
+  const response=String(payload&&payload.response||'').trim().replace(/\s+/g,' ');
+  return {
+    t:response||fallback.t,
+    vd:String(payload&&payload.vd||fallback.vd||'Emotion: careful consideration. Physical delivery: quiet and close. Pace: measured. Intent: she wants to answer only what she can safely say.'),
+    answerType:types.has(payload&&payload.answerType)?payload.answerType:'DOESNT_KNOW',
+    topicTag:String(payload&&payload.topicTag||'Free question').trim().slice(0,48)
+  };
+}
+async function getCharacterResponse(charId, question, convoState){
+  const character=PORTAL_WORLD.characters[charId];
+  if(!character) return {t:'',vd:'',answerType:'OUT_OF_WORLD',topicTag:'Unknown'};
+  const cacheKey=charId+'::'+normaliseFreeQuestion(question);
+  if(freeTextResponseCache.has(cacheKey)) return freeTextResponseCache.get(cacheKey);
+  const fallback=localFreeTextFallback(charId,question);
+  if(isOutOfWorldQuestion(question)){ freeTextResponseCache.set(cacheKey,fallback); return fallback; }
+  const context=buildGatedContext(charId,PORTAL_WORLD.unlockAfterEpisode);
+  let system=assertGatedPrompt(buildGatedSystemPrompt(charId,context));
+  let userQuestion=scrubForbiddenReferences(question,'user_question');
+  const verified=assertGatedPrompt(system+'\n'+userQuestion);
+  if(verified!==system+'\n'+userQuestion){ system=assertGatedPrompt(system); userQuestion=scrubForbiddenReferences(userQuestion,'prompt_assert'); }
+  const apiKey=window.OPENAI_API_KEY;
+  if(!apiKey){ freeTextResponseCache.set(cacheKey,fallback); return fallback; }
+  try{
+    const ctl=new AbortController(); const timer=setTimeout(()=>ctl.abort(),8000);
+    const response=await fetch('https://api.openai.com/v1/chat/completions',{
+      method:'POST', signal:ctl.signal, headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+      body:JSON.stringify({model:'gpt-4.1',response_format:{type:'json_object'},messages:[{role:'system',content:system},{role:'user',content:userQuestion}]})
+    });
+    clearTimeout(timer);
+    if(!response.ok) throw new Error('Character response failed');
+    const result=await response.json();
+    const payload=JSON.parse(result.choices&&result.choices[0]&&result.choices[0].message&&result.choices[0].message.content||'{}');
+    const cleaned=cleanLiveResponse(payload,fallback); freeTextResponseCache.set(cacheKey,cleaned); return cleaned;
+  }catch(error){ freeTextResponseCache.set(cacheKey,fallback); return fallback; }
+}
+window.buildGatedContext=buildGatedContext;
+window.buildGatedSystemPrompt=buildGatedSystemPrompt;
+
+/* ---------------- authored voice queue + playback ---------------- */
+const VOICE_WARM_CONCURRENCY = 4;
+const portalVoiceCache = new Map();
+let portalVoiceQueue = [], portalVoiceActive = 0, portalVoiceSequence = 0;
+let portalVoiceTotal = 0, portalVoiceFinished = 0, portalVoicesWarmed = false;
+let portalVoiceWarmStartedAt = 0, portalVoiceWarmReported = false;
+let portalVoiceMuted = false, activePortalAudio = null, portalPlaybackToken = 0;
+const portalVoiceKey = (charId, responseId) => charId+'::'+responseId;
+
+function authoredResponse(charId, responseId){
+  const c = PORTAL_WORLD.characters[charId];
+  if(!c) return null;
+  if(responseId === 'opening') return responseEntry(c.openingLine);
+  if(responseId === 'reentry') return responseEntry(c.reentryLine);
+  if(responseId === 'budget') return responseEntry(c.budgetExhausted);
+  if(responseId === 'unknown') return responseEntry(c.unknownTopic);
+  if(responseId.startsWith('topic:')) return responseEntry(c.fallbackResponses[responseId.slice(6)]);
+  return null;
+}
+function updateVoiceWarmStatus(){
+  if(!el.voiceWarmStatus) return;
+  const hasWork = portalVoiceTotal > 0 && portalVoiceFinished < portalVoiceTotal;
+  el.voiceWarmStatus.textContent = hasWork ? 'Voices '+portalVoiceFinished+'/'+portalVoiceTotal : '';
+  el.voiceWarmStatus.classList.toggle('is-warming', hasWork);
+}
+function queuePortalVoice(charId, responseId, response, tier=6){
+  const key = portalVoiceKey(charId, responseId);
+  if(portalVoiceCache.has(key)) return portalVoiceCache.get(key);
+  const noVoice = !window.OPENAI_API_KEY || !VOICE_CAST[charId] || !response || !response.t;
+  const record = {key, charId, responseId, response, status:noVoice?'silent':'queued', url:null, resolve:null, promise:null};
+  record.promise = new Promise(resolve => { record.resolve = resolve; });
+  portalVoiceCache.set(key, record);
+  if(noVoice){ record.resolve(null); return record; }
+  portalVoiceTotal += 1;
+  record.tier = tier;
+  record.sequence = portalVoiceSequence++;
+  portalVoiceQueue.push(record);
+  portalVoiceQueue.sort((a,b) => a.tier-b.tier || a.sequence-b.sequence);
+  updateVoiceWarmStatus();
+  pumpPortalVoiceQueue();
+  return record;
+}
+async function createPortalVoiceClip(job){
+  const cast = VOICE_CAST[job.charId];
+  try{
+    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method:'POST',
+      headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+window.OPENAI_API_KEY},
+      body:JSON.stringify({model:'gpt-4o-mini-tts', voice:cast.voice, input:job.response.t,
+        instructions:cast.persona+' '+(job.response.vd || ''), response_format:'mp3'})
+    });
+    if(!response.ok) return null;
+    return URL.createObjectURL(await response.blob());
+  }catch(error){ return null; }
+}
+function pumpPortalVoiceQueue(){
+  while(portalVoiceActive < VOICE_WARM_CONCURRENCY && portalVoiceQueue.length){
+    const job = portalVoiceQueue.shift();
+    portalVoiceActive += 1;
+    job.status = 'generating';
+    createPortalVoiceClip(job).then(url => {
+      job.url = url; job.status = url ? 'ready' : 'failed'; job.resolve(url);
+    }).finally(() => {
+      portalVoiceActive -= 1; portalVoiceFinished += 1;
+      if(!portalVoiceWarmReported && portalVoiceFinished === portalVoiceTotal && portalVoiceQueue.length === 0 && portalVoiceActive === 0){
+        portalVoiceWarmReported = true;
+        logPortalEvent('voice_warm_complete', {clips:portalVoiceTotal, ms:Math.round(performance.now()-portalVoiceWarmStartedAt)});
+      }
+      updateVoiceWarmStatus(); pumpPortalVoiceQueue();
+    });
+  }
+}
+function warmPortalVoices(){
+  if(EDIT_MODE || portalVoicesWarmed) return;
+  portalVoicesWarmed = true;
+  portalVoiceWarmStartedAt = performance.now();
+  const jobs = [];
+  Object.keys(PORTAL_WORLD.characters).forEach(charId => jobs.push([1,charId,'opening']));
+  const entryRoom = PORTAL_WORLD.rooms.find(room => room.entry);
+  (entryRoom ? entryRoom.characters : []).forEach(charId => PORTAL_WORLD.characters[charId].topics
+    .filter(topic => topic.always).forEach(topic => jobs.push([2,charId,'topic:'+topic.id])));
+  PORTAL_WORLD.rooms.filter(room => !room.entry).forEach(room => room.characters.forEach(charId => PORTAL_WORLD.characters[charId].topics
+    .filter(topic => topic.always).forEach(topic => jobs.push([3,charId,'topic:'+topic.id]))));
+  Object.keys(PORTAL_WORLD.characters).forEach(charId => ['budget','reentry','unknown'].forEach(id => jobs.push([4,charId,id])));
+  Object.keys(PORTAL_WORLD.characters).forEach(charId => PORTAL_WORLD.characters[charId].topics
+    .filter(topic => !topic.always).forEach(topic => jobs.push([5,charId,'topic:'+topic.id])));
+  jobs.forEach(([tier,charId,responseId]) => queuePortalVoice(charId,responseId,authoredResponse(charId,responseId),tier));
+  logPortalEvent('voice_warm_start', {clips:jobs.length});
+}
+function voiceIconMarkup(){
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4Z"></path><path d="M16 9a4 4 0 0 1 0 6"></path><path d="M18.5 6.5a7.5 7.5 0 0 1 0 11"></path></svg>';
+}
+function syncVoiceMuteControls(){
+  [el.voiceMute, el.conversationRoot.querySelector('[data-voice-mute]')].filter(Boolean).forEach(button => {
+    button.classList.toggle('is-muted', portalVoiceMuted);
+    button.setAttribute('aria-pressed', String(portalVoiceMuted));
+    button.setAttribute('aria-label', portalVoiceMuted ? 'Unmute character voices' : 'Mute character voices');
+    button.title = portalVoiceMuted ? 'Unmute character voices' : 'Mute character voices';
+  });
+}
+function stopPortalVoice(){
+  portalPlaybackToken += 1;
+  if(activePortalAudio){
+    const audio = activePortalAudio;
+    activePortalAudio = null;
+    try{ audio.pause(); audio.currentTime = 0; }catch(error){}
+    if(audio._portalFinish) audio._portalFinish();
+  }
+  el.conversationRoot.querySelector('.conversation-nameplate')?.classList.remove('is-speaking');
+  el.conversationRoot.querySelector('.dialogue-line')?.classList.remove('audio-pending');
+}
+function setPortalVoiceMuted(muted){
+  portalVoiceMuted = muted;
+  if(muted) stopPortalVoice();
+  syncVoiceMuteControls();
+}
+function syncDialogueToAudio(durationSeconds){
+  const line = el.conversationRoot.querySelector('.dialogue-line');
+  if(!conversation || !conversation.typing || !line || !durationSeconds) return;
+  const remaining = Math.max(1, conversation.fullLine.length - line.textContent.length);
+  conversation.typeInterval = Math.max(12, Math.min(70, durationSeconds*1000/remaining));
+}
+function startPortalVoice(url, token, onFinish){
+  if(!url || portalVoiceMuted || token !== portalPlaybackToken){ if(onFinish) onFinish(); return; }
+  const audio = new Audio(url); activePortalAudio = audio;
+  let finished = false;
+  const finish = () => {
+    if(finished) return;
+    finished = true;
+    if(activePortalAudio === audio){ activePortalAudio = null; el.conversationRoot.querySelector('.conversation-nameplate')?.classList.remove('is-speaking'); }
+    if(onFinish) onFinish();
+  };
+  audio._portalFinish = finish;
+  audio.addEventListener('loadedmetadata', () => syncDialogueToAudio(audio.duration));
+  audio.addEventListener('play', () => el.conversationRoot.querySelector('.conversation-nameplate')?.classList.add('is-speaking'));
+  audio.addEventListener('ended', finish);
+  audio.addEventListener('error', finish);
+  audio.play().catch(finish);
+}
+function revealResponseWithVoice(charId, responseId, response, onComplete){
+  stopPortalVoice();
+  const token = ++portalPlaybackToken;
+  setAnswerTypeTag(response && response.answerType);
+  const clip = queuePortalVoice(charId, responseId, response, 6);
+  let textFinished = false;
+  let audioFinished = true;
+  let completed = false;
+  const complete = () => {
+    if(completed || !textFinished || !audioFinished) return;
+    completed = true;
+    if(onComplete) onComplete();
+  };
+  typeDialogue(response.t, () => { textFinished = true; complete(); });
+  if(portalVoiceMuted || !clip || clip.status === 'silent' || clip.status === 'failed') return;
+  const line = el.conversationRoot.querySelector('.dialogue-line');
+  if(clip.url){ audioFinished = false; startPortalVoice(clip.url, token, () => { audioFinished = true; complete(); }); return; }
+  if(line) line.classList.add('audio-pending');
+  clip.promise.then(url => {
+    if(token !== portalPlaybackToken) return;
+    el.conversationRoot.querySelector('.dialogue-line')?.classList.remove('audio-pending');
+    if(!url) return;
+    audioFinished = false;
+    startPortalVoice(url, token, () => { audioFinished = true; complete(); });
+  });
+}
+el.voiceMute.addEventListener('click', () => setPortalVoiceMuted(!portalVoiceMuted));
+
+function answerTypeLabel(answerType){
+  return {ANSWERED:'She answered',DOESNT_KNOW:"She doesn't know",DEFLECTED:"She's avoiding this",OUT_OF_WORLD:"She doesn't follow"}[answerType]||'';
+}
+function setAnswerTypeTag(answerType){
+  const tag=el.conversationRoot.querySelector('.answer-type-tag');
+  if(!tag) return;
+  const label=answerTypeLabel(answerType);
+  tag.textContent=label; tag.classList.toggle('is-visible',!!label);
+}
+function knowledgePanelMarkup(charId){
+  const c=buildGatedContext(charId,PORTAL_WORLD.unlockAfterEpisode);
+  if(!c) return '';
+  const facts=c.allowedFacts.length ? c.allowedFacts.map(fact=>'<li>'+esc(fact)+'</li>').join('') : '<li>No shared facts yet.</li>';
+  return '<div class="knowledge-panel" data-knowledge-panel aria-live="polite">'+
+    '<div class="readout-head">Character: '+esc(PORTAL_WORLD.characters[charId].name)+'<br>Listener progress: Episode '+esc(c.listenerEpisode)+'</div>'+
+    '<div class="readout-section">Passed both gates — visible to the model</div><ul>'+facts+'</ul>'+
+    '<div class="readout-section">Withheld — never sent to the model</div>'+ 
+    '<ul class="readout-withheld"><li>'+c.withheld.progress+' facts blocked by episode progress</li><li>'+c.withheld.witness+' facts outside this character\'s experience</li></ul>'+
+    '<div class="readout-foot">Filtering happens before the model is called. Withheld facts are not in the context window — they cannot be revealed, extracted, or inferred.</div></div>';
+}
+function conversationMarkup(charId){
+  const c = PORTAL_WORLD.characters[charId];
+  return '<div class="conversation-shell" role="dialog" aria-modal="true" aria-label="Conversation with '+esc(c.label)+'">'+
+    '<div class="conversation-content">'+
+      '<div class="conversation-nameplate"><div class="name">'+esc(c.label)+'</div><div class="rule"></div></div>'+
+      '<section class="conversation-panel" tabindex="-1">'+
+        '<button type="button" class="conversation-end" data-end-conversation>End conversation</button>'+
+        '<button type="button" class="conversation-mute" data-voice-mute aria-label="Mute character voices" aria-pressed="false" title="Mute character voices"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4Z"></path><path d="M16 9a4 4 0 0 1 0 6"></path><path d="M18.5 6.5a7.5 7.5 0 0 1 0 11"></path></svg></button>'+
+        '<div class="question-budget" aria-label="Question budget"></div>'+
+        '<div class="conversation-copy">'+
+          '<div class="dialogue-line" aria-live="polite"></div><span class="answer-type-tag" aria-live="polite"></span>'+
+          '<div class="gate-row"><div class="gate-tag">Knows: up to episode 2 &bull; what she personally saw</div><button type="button" class="gate-readout" data-knowledge-toggle aria-expanded="false">What she can see</button></div>'+
+          knowledgePanelMarkup(charId)+
+          '<div class="conversation-controls"></div>'+ 
+        '</div>'+
+      '</section>'+
+    '</div>'+
+  '</div>';
+}
+
+function renderQuestionBudget(){
+  if(!conversation) return;
+  const budget = el.conversationRoot.querySelector('.question-budget');
+  if(!budget) return;
+  let dots = '';
+  for(let i=0; i<3; i++) dots += '<span class="budget-dot '+(i<conversation.questionsRemaining?'filled':'')+'"></span>';
+  budget.innerHTML = '<span class="budget-dots" aria-hidden="true">'+dots+'</span><span>She will answer '+conversation.questionsRemaining+'</span>';
+}
+
+function renderConversationControls(){
+  if(!conversation) return;
+  const controls = el.conversationRoot.querySelector('.conversation-controls');
+  if(!controls) return;
+  const c = PORTAL_WORLD.characters[conversation.charId];
+
+  if(conversation.exhausted){
+    controls.innerHTML = '<div class="topic-area" aria-live="polite">No more questions tonight.</div>';
+    renderQuestionBudget();
+    return;
+  }
+
+  const busy = conversation.thinking ? ' disabled' : '';
+  const chips = c.topics.map(topic => {
+    const available = isTopicAvailable(topic);
+    const asked = conversation.askedTopics.has(topic.id);
+    const focused = conversation.focusTopicId === topic.id;
+    const classes = 'topic-chip'+(asked?' asked':'')+(available?'':' locked')+(focused?' focused':'');
+    const lock = available ? '' : '<span class="lock-glyph" aria-hidden="true"></span>';
+    const marker = asked ? '<span class="asked-marker">Asked</span>' : '';
+    const hint = available ? '' : '<span class="topic-hint">Find something first.</span>';
+    const disabled = available ? busy : ' disabled title="Find something first."';
+    return '<button type="button" class="'+classes+'" data-topic-id="'+esc(topic.id)+'"'+(focused?' aria-current="true"':'')+disabled+'>'+lock+esc(topic.label)+marker+hint+'</button>';
+  }).join('');
+
+  const freeDisabled = FREE_TEXT_ENABLED ? busy : ' disabled title="Coming next"';
+  controls.innerHTML = '<div class="topic-area"><div class="topic-menu">'+chips+'</div>'+
+    '<div class="free-question"><input type="text" aria-label="Ask something else" placeholder="Ask something else..."'+freeDisabled+'>'+ 
+    '<button type="button"'+freeDisabled+'>Send</button></div></div>';
+
+  controls.querySelectorAll('[data-topic-id]').forEach(btn => {
+    btn.addEventListener('click', () => askCharacterQuestion(btn.dataset.topicId, null));
+  });
+  const freeInput = controls.querySelector('.free-question input');
+  const freeButton = controls.querySelector('.free-question button');
+  if(freeInput) freeInput.placeholder = 'Ask her something…';
+  const sendFreeText = () => askCharacterQuestion(null, freeInput.value.trim());
+  freeButton.addEventListener('click', sendFreeText);
+  freeInput.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); sendFreeText(); } });
+  renderQuestionBudget();
+}
+
+function finishDialogueTyping(){
+  if(!conversation || !conversation.typing) return false;
+  clearTimeout(conversation.typeTimer);
+  conversation.typing = false;
+  const line = el.conversationRoot.querySelector('.dialogue-line');
+  if(line){ line.classList.remove('thinking'); line.textContent = conversation.fullLine; }
+  const done = conversation.typeDone;
+  conversation.typeDone = null;
+  if(done) done();
+  return true;
+}
+
+function typeDialogue(text, onComplete){
+  if(!conversation) return;
+  const line = el.conversationRoot.querySelector('.dialogue-line');
+  if(!line) return;
+  clearTimeout(conversation.typeTimer);
+  conversation.fullLine = text || '';
+  conversation.typeDone = onComplete || null;
+  conversation.typeInterval = 22;
+  line.classList.remove('thinking');
+  line.textContent = '';
+
+  if(!conversation.fullLine){
+    conversation.typing = false;
+    line.textContent = conversation.fullLine;
+    const done = conversation.typeDone;
+    conversation.typeDone = null;
+    if(done) done();
+    return;
+  }
+
+  conversation.typing = true;
+  let index = 0;
+  const tick = () => {
+    if(!conversation || conversation.closing) return;
+    index += 1;
+    line.textContent = conversation.fullLine.slice(0, index);
+    if(index < conversation.fullLine.length){ conversation.typeTimer = setTimeout(tick, conversation.typeInterval || 22); }
+    else { conversation.typing = false; const done = conversation.typeDone; conversation.typeDone = null; if(done) done(); }
+  };
+  tick();
+}
+
+function showBudgetExhausted(){
+  if(!conversation || conversation.closing) return;
+  const activeConversation = conversation;
+  setTimeout(() => {
+    if(conversation !== activeConversation || conversation.closing) return;
+    const shell = el.conversationRoot.querySelector('.conversation-shell');
+    if(shell) shell.classList.add('is-exhausting');
+    setTimeout(() => {
+      if(conversation !== activeConversation || conversation.closing) return;
+      conversation.exhausted = true;
+      conversation.progress.exhausted = true;
+      renderConversationControls();
+      revealResponseWithVoice(conversation.charId, 'budget', responseEntry(PORTAL_WORLD.characters[conversation.charId].budgetExhausted));
+    }, prefersReducedMotion() ? 0 : 220);
+  }, 1000);
+}
+
+async function askCharacterQuestion(topicId, freeText){
+  if(!conversation || conversation.closing || conversation.exhausted || conversation.thinking) return;
+  const c = PORTAL_WORLD.characters[conversation.charId];
+  const topic = topicId ? c.topics.find(item => item.id === topicId) : null;
+  if(topic && !isTopicAvailable(topic)) return;
+  if(!topic && !freeText) return;
+  if(conversation.questionsRemaining <= 0) return;
+
+  const activeConversation = conversation;
+  stopPortalVoice();
+  if(conversation.typing) finishDialogueTyping();
+  conversation.questionsRemaining -= 1;
+  conversation.questionsAsked += 1;
+  conversation.progress.questionsRemaining = conversation.questionsRemaining;
+  conversation.progress.questionsAsked = conversation.questionsAsked;
+  if(topic) conversation.askedTopics.add(topic.id);
+  logPortalEvent('question', {character:conversation.charId, topic:topic ? topic.id : 'free_text', freeText:freeText || null});
+  let response;
+  if(topic){
+    response = fallbackFor(c, topic.id);
+  }else{
+    conversation.thinking = true;
+    renderConversationControls();
+    const line = el.conversationRoot.querySelector('.dialogue-line');
+    if(line){ line.classList.add('thinking'); line.textContent = ''; }
+    el.conversationRoot.querySelector('.conversation-nameplate')?.classList.add('is-considering');
+    response = await getCharacterResponse(conversation.charId, freeText, conversation);
+  }
+  if(!topic) logPortalEvent('free_question',{character:activeConversation.charId,question:String(freeText).trim(),topicTag:response.topicTag,answerType:response.answerType});
+  if(conversation !== activeConversation || conversation.closing) return;
+
+  conversation.thinking = false;
+  el.conversationRoot.querySelector('.conversation-nameplate')?.classList.remove('is-considering');
+  conversation.progress.lastAnswer = response.t;
+  if(topic && topic.grantsClue) collectClue(topic.grantsClue, {
+    source:'conversation', sourceId:conversation.charId+':'+topic.id, room:c.room
+  });
+  renderConversationControls();
+  const responseId = topic ? 'topic:'+topic.id : 'free:'+normaliseFreeQuestion(freeText);
+  revealResponseWithVoice(conversation.charId, responseId, response, conversation.questionsRemaining === 0 ? showBudgetExhausted : null);
+}
+
+function sourceSpriteRect(charId){
+  const stage = stageRect();
+  const box = charPxBox(charId);
+  return {left:stage.left+box.left, top:stage.top+box.top, width:box.width, height:box.height, bottom:stage.top+box.top+box.height};
+}
+function isCompactViewport(){ return !EDIT_MODE && window.innerWidth < 700; }
+function positionConversationSprite(useCurrentRect){
+  if(!conversation) return;
+  const stage = stageRect();
+  const compact = isCompactViewport();
+  const surface = compact ? {left:0, top:0, width:window.innerWidth, height:window.innerHeight} : stage;
+  const source = useCurrentRect || compact ? conversation.originRect : sourceSpriteRect(conversation.charId);
+  if(!source || !source.height) return;
+  const targetHeight = surface.height * (compact ? .39 : .88);
+  const targetCenterX = surface.left + surface.width * (compact ? .5 : .28);
+  const targetBottom = compact ? surface.top + surface.height * .38 : surface.top + surface.height;
+  conversation.sprite.style.setProperty('--convo-dx', (targetCenterX - (source.left + source.width/2))+'px');
+  conversation.sprite.style.setProperty('--convo-dy', (targetBottom - source.bottom)+'px');
+  conversation.sprite.style.setProperty('--convo-scale', String(targetHeight/source.height));
+}
+
+function openCharacter(charId, focusTopicId=null){
+  if(EDIT_MODE || conversation) return;
+  const c = PORTAL_WORLD.characters[charId];
+  const sprite = el.sprites.querySelector('[data-char-id="'+CSS.escape(charId)+'"]');
+  if(!c || !sprite) return;
+
+  const progress = conversationProgressFor(charId);
+  const isReentry = progress.hasOpened;
+  progress.hasOpened = true;
+  const mobilePresentation = isCompactViewport();
+  const originRect = sprite.getBoundingClientRect();
+  conversation = {
+    charId, sprite, originRect, progress, mobilePresentation,
+    spriteStyle:{left:sprite.style.left, top:sprite.style.top, height:sprite.style.height, position:sprite.style.position},
+    questionsRemaining:progress.questionsRemaining, questionsAsked:progress.questionsAsked,
+    askedTopics:askedTopicsFor(charId), typing:false, typeTimer:null, typeDone:null,
+    thinking:false, exhausted:progress.exhausted, closing:false, fullLine:'', focusTopicId
+  };
+  logPortalEvent('conversation_open', {character:charId});
+  el.conversationRoot.className = '';
+  el.conversationRoot.innerHTML = conversationMarkup(charId);
+  renderConversationControls();
+  const panel = el.conversationRoot.querySelector('.conversation-panel');
+  panel.addEventListener('click', e => {
+    if(e.target.closest('button, input, textarea, label')) return;
+    if(!conversation || !conversation.closing) finishDialogueTyping();
+  });
+  el.conversationRoot.querySelector('[data-end-conversation]').addEventListener('click', closeConversation);
+  el.conversationRoot.querySelector('[data-voice-mute]').addEventListener('click', () => setPortalVoiceMuted(!portalVoiceMuted));
+  el.conversationRoot.querySelector('[data-knowledge-toggle]').addEventListener('click', e => {
+    const panel=el.conversationRoot.querySelector('[data-knowledge-panel]');
+    if(!panel) return;
+    const open=!panel.classList.contains('is-open');
+    panel.classList.toggle('is-open',open); e.currentTarget.setAttribute('aria-expanded',String(open));
+  });
+  syncVoiceMuteControls();
+
+  document.body.classList.add('conversation-open');
+  sprite.classList.remove('talk-ready');
+  if(mobilePresentation){
+    sprite.style.position = 'fixed';
+    sprite.style.left = (originRect.left + originRect.width/2)+'px';
+    sprite.style.top = originRect.top+'px';
+    sprite.style.height = originRect.height+'px';
+  }
+  sprite.classList.add('conversation-active');
+  const reveal = () => {
+    if(!conversation || conversation.charId !== charId || conversation.closing) return;
+    el.conversationRoot.classList.add('is-ready');
+    panel.focus({preventScroll:true});
+    const responseId = progress.exhausted ? 'budget' : (isReentry ? 'reentry' : 'opening');
+    revealResponseWithVoice(charId, responseId, authoredResponse(charId, responseId));
+  };
+  if(prefersReducedMotion()){
+    positionConversationSprite(true);
+    reveal();
+  } else {
+    requestAnimationFrame(() => positionConversationSprite(true));
+    setTimeout(reveal, 420);
+  }
+}
+
+function closeConversation(){
+  if(!conversation || conversation.closing) return;
+  const activeConversation = conversation;
+  activeConversation.closing = true;
+  stopPortalVoice();
+  clearTimeout(activeConversation.typeTimer);
+  activeConversation.progress.questionsRemaining = activeConversation.questionsRemaining;
+  activeConversation.progress.questionsAsked = activeConversation.questionsAsked;
+  logPortalEvent('conversation_close', {character:activeConversation.charId, questionsAsked:activeConversation.questionsAsked});
+  el.conversationRoot.classList.remove('is-ready');
+  activeConversation.sprite.style.setProperty('--convo-dx', '0px');
+  activeConversation.sprite.style.setProperty('--convo-dy', '0px');
+  activeConversation.sprite.style.setProperty('--convo-scale', '1');
+  const cleanUp = () => {
+    if(conversation !== activeConversation) return;
+    activeConversation.sprite.classList.remove('conversation-active');
+    activeConversation.sprite.style.removeProperty('--convo-dx');
+    activeConversation.sprite.style.removeProperty('--convo-dy');
+    activeConversation.sprite.style.removeProperty('--convo-scale');
+    if(activeConversation.mobilePresentation){
+      activeConversation.sprite.style.left = activeConversation.spriteStyle.left;
+      activeConversation.sprite.style.top = activeConversation.spriteStyle.top;
+      activeConversation.sprite.style.height = activeConversation.spriteStyle.height;
+      activeConversation.sprite.style.position = activeConversation.spriteStyle.position;
+    }
+    document.body.classList.remove('conversation-open');
+    el.conversationRoot.innerHTML = '';
+    el.conversationRoot.className = '';
+    conversation = null;
+    maybeAutoExitRitual();
+  };
+  if(prefersReducedMotion()) cleanUp(); else setTimeout(cleanUp, 410);
+}
+
+window.addEventListener('resize', () => { if(conversation && !conversation.closing) positionConversationSprite(false); });
+document.addEventListener('pointerdown', e => {
+  if(EDIT_MODE || e.target.closest('.sprite')) return;
+  el.sprites.querySelectorAll('.sprite.talk-ready').forEach(node => node.classList.remove('talk-ready'));
+});
+
+const EVIDENCE_MODELS = new Set(['keyboard','jewellery','tray']);
+let activeEvidenceViewer = null;
+
+function makeToonAssets(T){
+  const gradient = new T.DataTexture(new Uint8Array([18,82,164,255]),4,1,T.LuminanceFormat);
+  gradient.minFilter = T.NearestFilter; gradient.magFilter = T.NearestFilter; gradient.needsUpdate = true;
+  return {gradient, geometries:new Set(), materials:new Set()};
+}
+function addOutlinedMesh(T, assets, parent, geometry, color, options){
+  const cfg = options || {};
+  assets.geometries.add(geometry);
+  const material = new T.MeshToonMaterial({color, gradientMap:assets.gradient, transparent:!!cfg.transparent,
+    opacity:cfg.opacity == null ? 1 : cfg.opacity, depthWrite:cfg.depthWrite !== false, side:cfg.side || T.FrontSide});
+  const outlineMaterial = new T.MeshBasicMaterial({color:0x08070a, side:T.BackSide, transparent:!!cfg.transparent,
+    opacity:cfg.outlineOpacity == null ? 1 : cfg.outlineOpacity, depthWrite:cfg.depthWrite !== false});
+  assets.materials.add(material); assets.materials.add(outlineMaterial);
+  const outline = new T.Mesh(geometry, outlineMaterial); outline.scale.setScalar(cfg.outlineScale || 1.045);
+  const mesh = new T.Mesh(geometry, material);
+  const pair = new T.Group(); pair.add(outline, mesh); parent.add(pair);
+  return pair;
+}
+function buildEvidenceModel(T, id, assets){
+  const model = new T.Group();
+  const gold=0xD8A94E, brass=0xB8873F, maroon=0x7B2B2B, cream=0xEDE9DE;
+  if(id === 'keyboard'){
+    const shaft = addOutlinedMesh(T,assets,model,new T.CylinderGeometry(.095,.095,2.45,8),brass); shaft.rotation.z=Math.PI/2; shaft.position.x=.1;
+    const bow = addOutlinedMesh(T,assets,model,new T.TorusGeometry(.48,.125,7,16),gold); bow.position.x=-1.28;
+    const collar = addOutlinedMesh(T,assets,model,new T.CylinderGeometry(.16,.16,.26,8),gold); collar.rotation.z=Math.PI/2; collar.position.x=-.72;
+    const toothOne = addOutlinedMesh(T,assets,model,new T.BoxGeometry(.32,.26,.19),brass); toothOne.position.set(1.12,-.18,0);
+    const toothTwo = addOutlinedMesh(T,assets,model,new T.BoxGeometry(.22,.4,.19),brass); toothTwo.position.set(1.42,-.28,0);
+    const tag = addOutlinedMesh(T,assets,model,new T.BoxGeometry(.52,.68,.045),cream); tag.position.set(-.66,-.72,.02); tag.rotation.z=.16;
+    model.rotation.set(.22,-.22,-.1); model.scale.setScalar(.9);
+  }else if(id === 'jewellery'){
+    const base = addOutlinedMesh(T,assets,model,new T.BoxGeometry(1.85,.72,1.42),maroon); base.position.y=-.32;
+    const lowerTrim = addOutlinedMesh(T,assets,model,new T.BoxGeometry(1.93,.12,1.5),0x5C1D26); lowerTrim.position.y=-.7;
+    const cushion = addOutlinedMesh(T,assets,model,new T.BoxGeometry(1.5,.14,1.08),cream); cushion.position.y=.11;
+    const slot = addOutlinedMesh(T,assets,model,new T.TorusGeometry(.3,.045,7,16),0x25161A); slot.rotation.x=Math.PI/2; slot.position.y=.205; slot.scale.set(1,.72,1);
+    const lid = new T.Group(); lid.position.set(0,.1,.71); lid.rotation.x=-.95; model.add(lid);
+    const lidPanel = addOutlinedMesh(T,assets,lid,new T.BoxGeometry(1.85,.18,1.34),maroon); lidPanel.position.set(0,.7,-.08);
+    const lidLining = addOutlinedMesh(T,assets,lid,new T.BoxGeometry(1.54,.05,1.04),cream); lidLining.position.set(0,.59,-.08);
+    model.rotation.set(.16,-.35,0); model.scale.setScalar(.94);
+  }else if(id === 'tray'){
+    const glass = addOutlinedMesh(T,assets,model,new T.CylinderGeometry(.39,.53,1.42,10,1,true),cream,{transparent:true,opacity:.28,depthWrite:false,side:T.DoubleSide,outlineOpacity:.82,outlineScale:1.028});
+    glass.position.y=.04;
+    const rim = addOutlinedMesh(T,assets,model,new T.TorusGeometry(.39,.045,6,16),cream,{transparent:true,opacity:.55,depthWrite:false,outlineOpacity:.75}); rim.rotation.x=Math.PI/2; rim.position.y=.75;
+    const base = addOutlinedMesh(T,assets,model,new T.TorusGeometry(.51,.075,7,16),brass,{transparent:true,opacity:.55,depthWrite:false,outlineOpacity:.8}); base.rotation.x=Math.PI/2; base.position.y=-.68;
+    const innerBase = addOutlinedMesh(T,assets,model,new T.CylinderGeometry(.38,.46,.045,10),0xB7844B,{transparent:true,opacity:.25,depthWrite:false,outlineOpacity:.6}); innerBase.position.y=-.58;
+    model.rotation.set(.12,-.42,0); model.scale.setScalar(1.05);
+  }
+  return model;
+}
+function disposeEvidenceViewer(){
+  if(activeEvidenceViewer){ activeEvidenceViewer.dispose(); activeEvidenceViewer=null; }
+}
+function hideEvidenceModel(host){
+  const examine=host&&host.closest('.evidence-examine');
+  const wrap=host&&host.closest('.evidence-model-wrap');
+  if(wrap) wrap.remove();
+  if(examine) examine.classList.add('no-model');
+}
+function initEvidenceModel(host, id){
+  if(!host || !EVIDENCE_MODELS.has(id)) return null;
+  if(!window.THREE){ hideEvidenceModel(host); return null; }
+  let renderer=null, assets=null;
+  try{
+    const T=window.THREE;
+    renderer=new T.WebGLRenderer({alpha:true,antialias:true,powerPreference:'low-power'});
+    const coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
+    renderer.setPixelRatio(coarse?1:Math.min(window.devicePixelRatio||1,1.5));
+    renderer.setClearColor(0x000000,0);
+    if('outputEncoding' in renderer) renderer.outputEncoding=T.sRGBEncoding;
+    renderer.domElement.setAttribute('aria-hidden','true'); host.appendChild(renderer.domElement);
+    const scene=new T.Scene();
+    const camera=new T.PerspectiveCamera(38,1,.1,100); camera.position.set(0,.15,5.8); camera.lookAt(0,0,0);
+    scene.add(new T.AmbientLight(0x7B2B2B,.72));
+    const key=new T.DirectionalLight(0xFFD27A,1.35); key.position.set(-3.5,4.5,6); scene.add(key);
+    assets=makeToonAssets(T); const model=buildEvidenceModel(T,id,assets); scene.add(model);
+    let width=0, height=0, frame=0, disposed=false, dragging=false, lastX=0, lastY=0, resumeAt=0, previous=performance.now();
+    const resize=()=>{
+      const nextWidth=Math.max(1,host.clientWidth), nextHeight=Math.max(1,host.clientHeight);
+      if(nextWidth===width&&nextHeight===height) return;
+      width=nextWidth; height=nextHeight; renderer.setSize(width,height,false); camera.aspect=width/height; camera.updateProjectionMatrix();
+    };
+    const onDown=e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; resumeAt=Infinity; host.setPointerCapture&&host.setPointerCapture(e.pointerId); };
+    const onMove=e=>{ if(!dragging) return; model.rotation.y+=(e.clientX-lastX)*.012; model.rotation.x=Math.max(-.42,Math.min(.55,model.rotation.x+(e.clientY-lastY)*.006)); lastX=e.clientX; lastY=e.clientY; };
+    const onUp=e=>{ if(!dragging) return; dragging=false; resumeAt=performance.now()+2000; if(host.hasPointerCapture&&host.hasPointerCapture(e.pointerId)) host.releasePointerCapture(e.pointerId); };
+    host.addEventListener('pointerdown',onDown); host.addEventListener('pointermove',onMove); host.addEventListener('pointerup',onUp); host.addEventListener('pointercancel',onUp);
+    const observer=window.ResizeObserver?new ResizeObserver(resize):null; if(observer) observer.observe(host); else window.addEventListener('resize',resize);
+    const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const animate=now=>{
+      if(disposed) return;
+      resize(); const elapsed=Math.min(48,now-previous); previous=now;
+      if(!reduce&&!dragging&&now>=resumeAt) model.rotation.y+=elapsed*(Math.PI*2/14000);
+      if(!reduce) model.position.y=Math.sin(now*(Math.PI*2/5000))*.055;
+      renderer.render(scene,camera); frame=requestAnimationFrame(animate);
+    };
+    frame=requestAnimationFrame(animate);
+    return {dispose(){
+      if(disposed) return; disposed=true; cancelAnimationFrame(frame); observer?observer.disconnect():window.removeEventListener('resize',resize);
+      host.removeEventListener('pointerdown',onDown); host.removeEventListener('pointermove',onMove); host.removeEventListener('pointerup',onUp); host.removeEventListener('pointercancel',onUp);
+      assets.geometries.forEach(geometry=>geometry.dispose()); assets.materials.forEach(material=>material.dispose()); assets.gradient.dispose();
+      renderer.renderLists&&renderer.renderLists.dispose(); renderer.dispose(); renderer.forceContextLoss&&renderer.forceContextLoss(); renderer.domElement.remove();
+    }};
+  }catch(error){
+    if(assets){ assets.geometries.forEach(geometry=>geometry.dispose()); assets.materials.forEach(material=>material.dispose()); assets.gradient.dispose(); }
+    if(renderer){ renderer.dispose(); renderer.forceContextLoss&&renderer.forceContextLoss(); renderer.domElement&&renderer.domElement.remove(); }
+    hideEvidenceModel(host);
+    return null;
+  }
+}
+let activeObjectExamination = null;
+let activeObjectAudio = null;
+let objectPlaybackToken = 0;
+function stopObjectNarration(){
+  objectPlaybackToken += 1;
+  if(activeObjectAudio){ try{ activeObjectAudio.pause(); activeObjectAudio.currentTime=0; }catch(error){} activeObjectAudio=null; }
+}
+function startObjectNarration(url, examination, token){
+  if(!url || portalVoiceMuted || token !== objectPlaybackToken || !examination) return;
+  const audio=new Audio(url); activeObjectAudio=audio;
+  audio.addEventListener('loadedmetadata',()=>{
+    if(!activeObjectExamination || activeObjectExamination !== examination || !examination.typing || !audio.duration) return;
+    const shown=examination.line.textContent.length;
+    const remaining=Math.max(1, examination.text.length-shown);
+    examination.interval=Math.max(12,Math.min(70,audio.duration*1000/remaining));
+  });
+  const clear=()=>{ if(activeObjectAudio===audio) activeObjectAudio=null; };
+  audio.addEventListener('ended',clear); audio.addEventListener('error',clear); audio.play().catch(clear);
+}
+function renderObjectClue(examination){
+  if(!examination.firstInspection || !examination.object.clue || examination.clueShown) return;
+  examination.clueShown=true;
+  const note=document.createElement('div'); note.className='object-clue-noted';
+  note.innerHTML='<strong>Noted</strong>'+esc(examination.object.clue);
+  examination.line.insertAdjacentElement('afterend',note);
+}
+function finishObjectTyping(){
+  const examination=activeObjectExamination;
+  if(!examination || !examination.typing) return false;
+  clearTimeout(examination.timer); examination.typing=false;
+  examination.line.textContent=examination.text; examination.line.classList.remove('is-typing');
+  renderObjectClue(examination); return true;
+}
+function typeObjectObservation(examination){
+  const reduce=prefersReducedMotion(); let index=0;
+  examination.typing=true; examination.line.classList.add('is-typing'); examination.line.textContent='';
+  const tick=()=>{
+    if(activeObjectExamination !== examination) return;
+    index+=1; examination.line.textContent=examination.text.slice(0,index);
+    if(index<examination.text.length) examination.timer=setTimeout(tick,reduce?0:examination.interval);
+    else { examination.typing=false; examination.line.classList.remove('is-typing'); renderObjectClue(examination); }
+  };
+  tick();
+}
+function objectModalMarkup(o){
+  const model=EVIDENCE_MODELS.has(o.id) ? '<div class="evidence-model-wrap"><div class="evidence-model" data-evidence-model="'+esc(o.id)+'"></div><div class="evidence-caption">Evidence</div></div>' : '';
+  return '<div class="eyebrow">Bua notices</div><h2>'+esc(o.label)+'</h2><div class="evidence-examine '+(model?'':'no-model')+'">'+model+
+    '<div class="evidence-copy"><div class="maroon-rule"></div><p class="object-examine-copy" data-object-text aria-live="polite"></p></div></div>'+
+    '<button class="object-step-back" type="button" data-step-back>Step back</button>';
+}
+function openObject(objId){
+  const o=WORK.objects.find(x=>x.id===objId); if(!o) return;
+  const firstInspection=!state.seen.has(objId);
+  if(firstInspection){
+    state.seen.add(objId);
+    logPortalEvent('object_examined',{object:objId, room:o.room});
+    if(o.clue) collectClue(objId,{source:'object',sourceId:objId,room:o.room});
+  }
+  showModal(objectModalMarkup(o),panel=>{
+    const host=panel.querySelector('[data-evidence-model]'); if(host) activeEvidenceViewer=initEvidenceModel(host,objId);
+    const line=panel.querySelector('[data-object-text]');
+    const examination={object:o, firstInspection, line, text:o.text || '', timer:null, interval:22, typing:false, clueShown:false};
+    activeObjectExamination=examination;
+    const clip=queuePortalVoice('bua','object:'+objId,{t:examination.text,vd:o.vd || 'Emotion: wary observation. Delivery: low and precise. Pace: unhurried. Intent: Bua is noticing what does not fit.'},6);
+    const token=++objectPlaybackToken;
+    if(!portalVoiceMuted && clip && clip.url) startObjectNarration(clip.url,examination,token);
+    else if(!portalVoiceMuted && clip) clip.promise.then(url=>{ if(activeObjectExamination===examination) startObjectNarration(url,examination,token); });
+    typeObjectObservation(examination);
+    panel.addEventListener('click',event=>{
+      if(event.target.closest('button, canvas')) return;
+      finishObjectTyping();
+    });
+    panel.querySelector('[data-step-back]').addEventListener('click',closeModal);
+  },{backdropClass:'object-examine-backdrop',panelClass:'object-examine-panel'});
+}
+function esc(s){ const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+let activeModalCleanup = null;
+function showModal(inner, onOpen, options={}){
+  closeModal();
+  el.modalRoot.innerHTML =
+    '<div class="modal-backdrop '+(options.backdropClass || '')+'"><div class="panel '+(options.panelClass || '')+'" role="dialog" aria-modal="true" tabindex="-1">'+
+    '<button class="close-btn" aria-label="Close">&#10005;</button>'+inner+'</div></div>';
+  const backdrop = el.modalRoot.querySelector('.modal-backdrop');
+  backdrop.addEventListener('click', e => { if(e.target === backdrop) closeModal(); });
+  el.modalRoot.querySelector('.close-btn').addEventListener('click', closeModal);
+  const onEscape=event=>{ if(event.key==='Escape') closeModal(); };
+  document.addEventListener('keydown',onEscape);
+  activeModalCleanup=()=>document.removeEventListener('keydown',onEscape);
+  if(onOpen) onOpen(el.modalRoot.querySelector('.panel'));
+}
+function closeModal(){
+  if(activeModalCleanup){ activeModalCleanup(); activeModalCleanup=null; }
+  if(activeObjectExamination){ clearTimeout(activeObjectExamination.timer); activeObjectExamination=null; }
+  stopObjectNarration(); disposeEvidenceViewer(); el.modalRoot.innerHTML = '';
+}
+
+function updateClueCounter(){
+  el.clueCount.innerHTML = 'CLUES <b>'+foundClues.size+'</b> / '+clueDefinitions().length;
+}
+let exitRitual=null;
+let autoRitualBlockedUntil=0;
+function ritualStats(){
+  const progress=[...conversationProgressByCharacter.values()];
+  return {clues:foundClues.size, characters:progress.filter(item=>item.hasOpened).length, questions:progress.reduce((sum,item)=>sum+item.questionsAsked,0)};
+}
+function ritualNarrate(lineId){
+  const line=PORTAL_WORLD.portalRitual && PORTAL_WORLD.portalRitual[lineId]; if(!line || portalVoiceMuted) return;
+  const clip=queuePortalVoice('bua','ritual:'+lineId,line,4); const token=++portalPlaybackToken;
+  if(clip.url) startPortalVoice(clip.url,token); else clip.promise.then(url=>startPortalVoice(url,token));
+}
+function voteCardsMarkup(){
+  return PORTAL_WORLD.suspectVote.options.map(option=>{
+    const character=Object.values(PORTAL_WORLD.characters).find(item=>item.name.toLowerCase()===option.replace(' bhabhi','').toLowerCase());
+    const avatar=character ? '<img class="vote-avatar" src="'+esc(character.sprite)+'" alt="">' : '<span class="vote-avatar silhouette" aria-hidden="true"></span>';
+    return '<button class="vote-card" type="button" data-suspect="'+esc(option)+'">'+avatar+'<span>'+esc(option)+'</span></button>';
+  }).join('');
+}
+function voteBarsMarkup(){
+  const votes=PORTAL_WORLD.portalRitual.voteDistribution;
+  return '<div class="vote-bars">'+PORTAL_WORLD.suspectVote.options.map(option=>'<div class="vote-bar"><span>'+esc(option)+'</span><i><b style="width:'+votes[option]+'%"></b></i><em>'+votes[option]+'%</em></div>').join('')+'</div>';
+}
+function showExitRitual(trigger='manual'){
+  if(EDIT_MODE || exitRitual) return;
+  if(conversation) { closeConversation(); setTimeout(()=>showExitRitual(trigger),460); return; }
+  closeModal(); exitRitual={trigger,suspect:null,theory:null};
+  logPortalEvent('exit_ritual_shown',{trigger}); renderRitualVote();
+}
+function renderRitualVote(){
+  if(!exitRitual) return;
+  const intro=PORTAL_WORLD.portalRitual.voteIntro;
+  el.ritualRoot.innerHTML='<div class="ritual-shell"><section class="ritual-card" role="dialog" aria-modal="true" aria-label="Suspect vote"><div class="ritual-kicker">Before you leave</div><h2>Who do you suspect?</h2><p class="ritual-copy">'+esc(intro.t)+'</p><p class="ritual-copy">'+esc(PORTAL_WORLD.suspectVote.prompt)+'</p><div class="vote-grid">'+voteCardsMarkup()+'</div><div class="ritual-actions"><button type="button" data-ritual-not-yet>Not yet — I want to look around more</button></div></section></div>';
+  ritualNarrate('voteIntro');
+  el.ritualRoot.querySelectorAll('[data-suspect]').forEach(button=>button.addEventListener('click',()=>{
+    exitRitual.suspect=button.dataset.suspect;
+    const stats=ritualStats(); logPortalEvent('suspect_vote',{suspect:exitRitual.suspect,clueCount:stats.clues,questionsAsked:stats.questions});
+    el.ritualRoot.querySelector('.vote-grid').classList.add('has-selection'); button.classList.add('selected');
+    setTimeout(renderRitualCrowd,prefersReducedMotion()?0:300);
+  }));
+  el.ritualRoot.querySelector('[data-ritual-not-yet]').addEventListener('click',()=>{ autoRitualBlockedUntil=Date.now()+90000; el.ritualRoot.innerHTML=''; exitRitual=null; });
+}
+function renderRitualCrowd(){
+  if(!exitRitual) return; const votes=PORTAL_WORLD.portalRitual.voteDistribution, suspect=exitRitual.suspect, percent=votes[suspect];
+  const majority=percent>=Math.max(...Object.values(votes));
+  el.ritualRoot.querySelector('.ritual-card').innerHTML='<div class="ritual-kicker">The room is deciding</div><h2>'+esc(suspect)+'</h2><div class="crowd-compare"><strong>'+percent+'% of listeners suspect '+esc(suspect)+'.</strong><span class="plus-one">+1</span><br>'+ (majority?'You’re with the '+percent+'%.':'Only '+percent+'% suspect '+esc(suspect)+'. You’re in the minority.') +'</div>'+voteBarsMarkup()+'<div class="ritual-actions"><button type="button" data-ritual-theory>Continue with your theory</button><button type="button" data-ritual-change>Change my vote</button></div>';
+  el.ritualRoot.querySelector('[data-ritual-theory]').addEventListener('click',renderRitualTheory);
+  el.ritualRoot.querySelector('[data-ritual-change]').addEventListener('click',renderRitualVote);
+}
+function listenerFeedMarkup(){ return PORTAL_WORLD.portalRitual.theories.map(item=>'<article class="listener-theory"><span class="listener-dot"></span><div><span class="listener-meta">'+esc(item.name)+' · '+esc(item.time)+'</span>'+esc(item.text)+'</div></article>').join(''); }
+function renderRitualTheory(){
+  if(!exitRitual) return;
+  el.ritualRoot.querySelector('.ritual-card').innerHTML='<div class="ritual-kicker">Your theory</div><h2>What happened in that room?</h2><p class="ritual-copy">'+esc(PORTAL_WORLD.theoryPrompt)+'</p><form class="theory-form"><input maxlength="140" aria-label="Your theory" autocomplete="off" placeholder="One line is enough."><div class="theory-counter">0 / 140</div><button type="submit">Share my theory</button></form><div class="ritual-actions"><button type="button" data-theory-skip>Skip</button></div>';
+  const input=el.ritualRoot.querySelector('input'), counter=el.ritualRoot.querySelector('.theory-counter');
+  input.addEventListener('input',()=>counter.textContent=input.value.length+' / 140');
+  el.ritualRoot.querySelector('.theory-form').addEventListener('submit',event=>{ event.preventDefault(); const text=input.value.trim(); if(!text) return; exitRitual.theory=text; logPortalEvent('theory_submitted',{text,suspect:exitRitual.suspect}); renderRitualTheories(); });
+  el.ritualRoot.querySelector('[data-theory-skip]').addEventListener('click',()=>{ exitRitual.theory=''; logPortalEvent('theory_skipped',{}); renderRitualClose(); });
+  setTimeout(()=>input.focus({preventScroll:true}),30);
+}
+function renderRitualTheories(){
+  if(!exitRitual) return;
+  el.ritualRoot.querySelector('.ritual-card').innerHTML='<div class="ritual-kicker">Other listeners</div><h2>Not everyone sees it the same way.</h2><p class="ritual-copy">Your theory has been noted.</p><div class="listener-feed">'+listenerFeedMarkup()+'</div><div class="ritual-actions"><button type="button" data-ritual-close>Continue</button></div>';
+  el.ritualRoot.querySelector('[data-ritual-close]').addEventListener('click',renderRitualClose);
+}
+function downloadShareCard(button){
+  try{ const canvas=document.createElement('canvas'); canvas.width=1080; canvas.height=1920; const ctx=canvas.getContext('2d'); if(!ctx) return;
+    ctx.fillStyle='#110e13';ctx.fillRect(0,0,canvas.width,canvas.height); const image=new Image(); image.onload=()=>{ctx.globalAlpha=.23;ctx.drawImage(image,0,0,canvas.width,canvas.width*9/16);ctx.globalAlpha=1; draw();}; image.onerror=draw; image.src=el.bg.src;
+    const draw=()=>{ctx.fillStyle='#d8a94e';ctx.font='600 34px serif';ctx.fillText('POCKET PORTAL',80,180);ctx.fillStyle='#f1eadb';ctx.font='700 78px serif';ctx.fillText('The Night Before the Wedding',80,300);ctx.font='42px serif';ctx.fillText('I suspect '+exitRitual.suspect,80,520);ctx.font='34px serif'; const text=exitRitual.theory||'I am still deciding.';ctx.fillText(text.slice(0,58),80,640);ctx.fillStyle='#d8a94e';ctx.font='600 30px sans-serif';ctx.fillText('CLUES '+foundClues.size+' / '+clueDefinitions().length,80,1810);canvas.toBlob(blob=>{if(!blob)return;const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='pocket-portal-theory.png';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);},'image/png');};
+  }catch(error){ if(button) button.remove(); }
+}
+function renderRitualClose(){
+  if(!exitRitual) return; const stats=ritualStats(), closing=PORTAL_WORLD.portalRitual.closingLine;
+  el.ritualRoot.querySelector('.ritual-card').innerHTML='<div class="ritual-kicker">For tonight</div><h2>Keep your answer close.</h2><p class="ritual-copy">'+esc(closing.t)+'</p><div class="ritual-summary"><div class="ritual-stat">Clues found<b>'+stats.clues+' / '+clueDefinitions().length+'</b></div><div class="ritual-stat">Characters questioned<b>'+stats.characters+'</b></div><div class="ritual-stat">Questions asked<b>'+stats.questions+'</b></div><div class="ritual-stat">Suspect named<b>'+esc(exitRitual.suspect)+'</b></div></div><p class="ritual-copy">Episode 3 unlocks in '+countdownText(portalSecondsRemaining)+'.</p><div class="ritual-actions"><button type="button" data-share-theory>Share your theory</button><button type="button" data-back-house>Back into the house</button><button type="button" data-ritual-done>Done</button></div>';
+  ritualNarrate('closingLine');
+  el.ritualRoot.querySelector('[data-share-theory]').addEventListener('click',event=>downloadShareCard(event.currentTarget));
+  el.ritualRoot.querySelector('[data-back-house]').addEventListener('click',()=>{el.ritualRoot.innerHTML='';exitRitual=null;});
+  el.ritualRoot.querySelector('[data-ritual-done]').addEventListener('click',()=>{const s=ritualStats();logPortalEvent('portal_exit',{durationSeconds:Math.round((performance.now()-portalOpenedAt)/1000),cluesFound:s.clues,questionsAsked:s.questions});el.ritualRoot.innerHTML='';exitRitual=null;if(window.PocketPortal)window.PocketPortal.close();});
+}
+function maybeAutoExitRitual(){
+  const stats=ritualStats();
+  if(!exitRitual && !conversation && !el.modalRoot.innerHTML && Date.now()>=autoRitualBlockedUntil && state.seen.size>=4 && stats.characters>=2) showExitRitual('auto');
+}
+el.leavePortal.addEventListener('click',()=>showExitRitual('manual'));
+function journalMarkup(){
+  const found=clueHistory.filter((entry,index,self)=>self.findIndex(other=>other.id===entry.id)===index);
+  const foundRows=found.length ? found.map(entry=>'<div class="journal-row">'+
+    '<span class="journal-source">'+esc(entry.sourceLabel || 'Observation')+'</span>'+esc(entry.text || 'A detail worth remembering.')+
+    '<span class="journal-location">'+esc(roomLabel(entry.room))+'</span></div>').join('') :
+    '<div class="journal-row is-unfound">Nothing has been noted yet.</div>';
+  const missingRooms=[...new Set(PORTAL_WORLD.objects.filter(object=>object.clue && !foundClues.has(object.id)).map(object=>object.room))];
+  const missingRows=missingRooms.map(room=>'<div class="journal-row is-unfound">Something in '+esc(roomLabel(room).toLowerCase())+' — not yet examined.</div>').join('');
+  const questions=[...announcedTopics].map(key=>{
+    const [charId,topicId]=key.split(':'); const character=PORTAL_WORLD.characters[charId]; const topic=character && character.topics.find(item=>item.id===topicId);
+    return character && topic ? {charId,topic,character} : null;
+  }).filter(Boolean);
+  const questionRows=questions.length ? questions.map(item=>'<button class="journal-topic" type="button" data-journal-character="'+esc(item.charId)+'" data-journal-topic="'+esc(item.topic.id)+'">'+esc(item.character.name)+' — '+esc(item.topic.label)+(state.roomId!==item.character.room?' · '+esc(roomLabel(item.character.room)):'')+'</button>').join('') :
+    '<div class="journal-row is-unfound">No new questions have opened yet.</div>';
+  return '<div class="eyebrow">Investigation journal</div><h2>What Bua has noticed</h2><div class="maroon-rule"></div>'+ 
+    '<section class="journal-section"><h3>Clues</h3>'+foundRows+missingRows+'</section>'+ 
+    '<section class="journal-section"><h3>Questions this opened</h3>'+questionRows+'</section>';
+}
+function openJournal(){
+  showModal(journalMarkup(),panel=>{
+    panel.querySelectorAll('[data-journal-character]').forEach(button=>button.addEventListener('click',()=>{
+      const character=button.dataset.journalCharacter, topic=button.dataset.journalTopic;
+      closeModal(); navigateToTopic(character,topic);
+    }));
+  },{panelClass:'journal-panel'});
+}
+el.clueCount.addEventListener('click',openJournal);
+
+let portalSecondsRemaining = PORTAL_WINDOW.closesInSeconds;
+let portalOpenedAt = performance.now();
+function countdownText(secs){
+  const pad=n=>String(n).padStart(2,'0');
+  return pad(Math.floor(secs/3600))+':'+pad(Math.floor((secs%3600)/60))+':'+pad(secs%60);
+}
+function showPortalClosed(){
+  el.ritualRoot.innerHTML='<div class="ritual-shell"><section class="ritual-card" role="dialog" aria-modal="true"><div class="ritual-kicker">The evening after</div><h2>The portal has closed.</h2><p class="ritual-copy">Episode 3 is out now.</p><div class="ritual-actions"><button type="button" data-portal-replay>Replay the portal</button></div></section></div>';
+  el.ritualRoot.querySelector('[data-portal-replay]').addEventListener('click',()=>{ portalSecondsRemaining=PORTAL_WINDOW.closesInSeconds; el.ritualRoot.innerHTML=''; });
+}
+function startCountdown(){
+  if(!PORTAL_WINDOW.enabled){ el.countdown.textContent='PORTAL OPEN'; return; }
+  el.windowLabel.textContent=PORTAL_WINDOW.nextEpisodeLabel;
+  const pad = n => String(n).padStart(2,'0');
+  const paint = () => {
+    el.countdown.textContent = 'OPEN FOR ' + countdownText(portalSecondsRemaining);
+    el.countdown.classList.toggle('is-amber',portalSecondsRemaining<1800);
+    el.countdown.classList.toggle('is-urgent',portalSecondsRemaining<300);
+  };
+  paint();
+  setInterval(()=>{
+    portalSecondsRemaining-=1;
+    if(portalSecondsRemaining<0){
+      if(PORTAL_WINDOW.demoMode) portalSecondsRemaining=PORTAL_WINDOW.closesInSeconds;
+      else { portalSecondsRemaining=0; paint(); showPortalClosed(); return; }
+    }
+    paint();
+  },1000);
+}
+function startPresence(){
+  /* Simulated audience presence: cosmetic random walk, never analytics. */
+  let listeners=1284;
+  const tick=()=>{
+    const burst=Math.random()<.12 ? (Math.random()<.5?-1:1)*(5+Math.floor(Math.random()*8)) : 0;
+    listeners=Math.max(1120,listeners+(Math.floor(Math.random()*8)-4)+burst);
+    el.presence.textContent=listeners.toLocaleString('en-IN')+' listeners inside';
+    setTimeout(tick,3000+Math.floor(Math.random()*3000));
+  };
+  tick();
+}
+
+/* =====================================================================
+   EDITOR
+===================================================================== */
+const ed = { mode:'characters', sel:null, guides:false, baseline:88, drag:null, opacity:100, dirty:false };
+
+function markDirty(d){
+  ed.dirty = d === undefined ? true : d;
+  /* Never put editor-only state on <body>: it controls the entire app layout. */
+  el.panel.classList.toggle('is-dirty', ed.dirty);
+  if(ed.dirty) saveDraft();
+}
+function saveDraft(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify({work:WORK, baseline:ed.baseline})); }catch(e){}
+}
+
+/* ---- geometry ---- */
+function stageRect(){ return el.stage.getBoundingClientRect(); }
+function charPxBox(charId){
+  const s = stageRect(), p = WORK.characters[charId].position;
+  const h = num(p.h)/100 * s.height;
+  const w = h * (ASPECT[charId] || 0.35);
+  const cx = num(p.x)/100 * s.width;
+  return { left: cx - w/2, top: num(p.y)/100 * s.height, width:w, height:h };
+}
+function objPxBox(objId){
+  const s = stageRect(), r = WORK.objects.find(o=>o.id===objId).hotspot;
+  return { left:num(r.x)/100*s.width, top:num(r.y)/100*s.height,
+           width:num(r.w)/100*s.width, height:num(r.h)/100*s.height };
+}
+function selPxBox(){
+  if(!ed.sel) return null;
+  return ed.sel.type === 'char' ? charPxBox(ed.sel.id) : objPxBox(ed.sel.id);
+}
+
+function select(type, id){
+  ed.sel = (type && id) ? {type, id} : null;
+  renderOverlay(); renderPanel();
+}
+
+/* ---- drag / scale ---- */
+function beginSpriteDrag(e, charId){
+  if(ed.mode !== 'characters') return;
+  e.preventDefault();
+  select('char', charId);
+  const s = stageRect(), p = WORK.characters[charId].position;
+  ed.drag = { kind:'move-char', id:charId, startX:e.clientX, startY:e.clientY,
+              origX:num(p.x), origY:num(p.y), sw:s.width, sh:s.height };
+  document.body.classList.add('dragging');
+}
+function beginHotspotDrag(e, objId){
+  if(ed.mode !== 'hotspots') return;
+  e.preventDefault();
+  select('obj', objId);
+  const s = stageRect(), r = WORK.objects.find(o=>o.id===objId).hotspot;
+  ed.drag = { kind:'move-obj', id:objId, startX:e.clientX, startY:e.clientY,
+              origX:num(r.x), origY:num(r.y), sw:s.width, sh:s.height };
+  document.body.classList.add('dragging');
+}
+function beginHandleDrag(e, dir){
+  e.preventDefault(); e.stopPropagation();
+  if(!ed.sel) return;
+  const s = stageRect();
+  if(ed.sel.type === 'char'){
+    const p = WORK.characters[ed.sel.id].position;
+    ed.drag = { kind:'scale-char', id:ed.sel.id, dir, sw:s.width, sh:s.height,
+                sLeft:s.left, sTop:s.top,
+                bottomPct:num(p.y)+num(p.h), centerPct:num(p.x) };
+  } else {
+    const r = WORK.objects.find(o=>o.id===ed.sel.id).hotspot;
+    ed.drag = { kind:'scale-obj', id:ed.sel.id, dir, sw:s.width, sh:s.height,
+                sLeft:s.left, sTop:s.top,
+                x:num(r.x), y:num(r.y), w:num(r.w), h:num(r.h) };
+  }
+  document.body.classList.add('dragging');
+}
+
+window.addEventListener('pointermove', e => {
+  const d = ed.drag; if(!d) return;
+
+  if(d.kind === 'move-char'){
+    const p = WORK.characters[d.id].position;
+    p.x = pct(clamp(d.origX + (e.clientX-d.startX)/d.sw*100, -20, 120));
+    p.y = pct(clamp(d.origY + (e.clientY-d.startY)/d.sh*100, -40, 110));
+    syncCharEl(d.id);
+  }
+  else if(d.kind === 'move-obj'){
+    const r = WORK.objects.find(o=>o.id===d.id).hotspot;
+    r.x = pct(clamp(d.origX + (e.clientX-d.startX)/d.sw*100, -20, 120));
+    r.y = pct(clamp(d.origY + (e.clientY-d.startY)/d.sh*100, -20, 120));
+    syncObjEl(d.id);
+  }
+  else if(d.kind === 'scale-char'){
+    /* aspect locked, anchored to BOTTOM CENTRE so feet stay planted */
+    const p = WORK.characters[d.id].position;
+    const aspect = ASPECT[d.id] || 0.35;
+    let hPct;
+    if(d.dir === 'nw' || d.dir === 'ne'){
+      const bottomPx = d.bottomPct/100 * d.sh;
+      hPct = (bottomPx - (e.clientY - d.sTop)) / d.sh * 100;
+    } else {
+      const centerPx = d.centerPct/100 * d.sw;
+      const halfW = Math.abs((e.clientX - d.sLeft) - centerPx);
+      hPct = (halfW*2 / aspect) / d.sh * 100;
+    }
+    hPct = clamp(hPct, 3, 200);
+    p.h = pct(hPct);
+    p.y = pct(d.bottomPct - hPct);   /* keep bottom fixed */
+    syncCharEl(d.id);
+  }
+  else if(d.kind === 'scale-obj'){
+    /* free resize, independent w/h */
+    const r = WORK.objects.find(o=>o.id===d.id).hotspot;
+    const mx = (e.clientX - d.sLeft)/d.sw*100, my = (e.clientY - d.sTop)/d.sh*100;
+    let {x,y,w,h} = d;
+    const right = d.x + d.w, bottom = d.y + d.h;
+    if(d.dir.includes('w')){ x = Math.min(mx, right-1); w = right - x; }
+    if(d.dir.includes('e')){ w = Math.max(1, mx - d.x); }
+    if(d.dir.includes('n')){ y = Math.min(my, bottom-1); h = bottom - y; }
+    if(d.dir.includes('s')){ h = Math.max(1, my - d.y); }
+    r.x = pct(x); r.y = pct(y); r.w = pct(w); r.h = pct(h);
+    syncObjEl(d.id);
+  }
+  positionChrome();
+  updateInspectorValues();
+});
+
+window.addEventListener('pointerup', () => {
+  if(!ed.drag) return;
+  ed.drag = null;
+  document.body.classList.remove('dragging');
+  markDirty(true);
+  renderPanel();
+});
+
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+/* live DOM sync without a full re-render (keeps drags smooth) */
+function syncCharEl(charId){
+  const node = el.sprites.querySelector('[data-char-id="'+charId+'"]');
+  if(!node) return;
+  const p = WORK.characters[charId].position;
+  node.style.left = p.x; node.style.top = p.y; node.style.height = p.h;
+}
+function syncObjEl(objId){
+  const node = el.hotspots.querySelector('[data-obj-id="'+CSS.escape(objId)+'"]');
+  if(!node) return;
+  const r = WORK.objects.find(o=>o.id===objId).hotspot;
+  node.style.left = r.x; node.style.top = r.y; node.style.width = r.w; node.style.height = r.h;
+}
+
+/* ---- selection chrome ---- */
+function renderOverlay(){
+  el.selChrome.innerHTML = '';
+  if(!ed.sel) return;
+  const isChar = ed.sel.type === 'char';
+  if(isChar && ed.mode !== 'characters') return;
+  if(!isChar && ed.mode !== 'hotspots') return;
+
+  const box = document.createElement('div');
+  box.className = 'sel-box';
+  box.id = 'sel-box';
+
+  const dirs = isChar ? ['nw','ne','sw','se'] : ['nw','ne','sw','se','n','s','e','w'];
+  const frag = document.createDocumentFragment();
+  frag.appendChild(box);
+  dirs.forEach(dir => {
+    const hnd = document.createElement('div');
+    hnd.className = 'sel-handle ' + dir;
+    hnd.dataset.dir = dir;
+    hnd.addEventListener('pointerdown', e => beginHandleDrag(e, dir));
+    frag.appendChild(hnd);
+  });
+
+  const bar = document.createElement('div');
+  bar.className = 'sel-toolbar'; bar.id = 'sel-toolbar';
+  const nm = document.createElement('span');
+  nm.className = 'nm';
+  nm.textContent = isChar ? PORTAL_WORLD.characters[ed.sel.id].label
+                          : (WORK.objects.find(o=>o.id===ed.sel.id).label || ed.sel.id);
+  const del = document.createElement('button');
+  del.textContent = '\u2715'; del.title = 'Delete';
+  del.addEventListener('pointerdown', e => e.stopPropagation());
+  del.addEventListener('click', deleteSelection);
+  bar.append(nm, del);
+  frag.appendChild(bar);
+
+  el.selChrome.appendChild(frag);
+  positionChrome();
+}
+
+function positionChrome(){
+  const box = document.getElementById('sel-box');
+  if(!box) return;
+  const b = selPxBox(); if(!b) return;
+  Object.assign(box.style, { left:b.left+'px', top:b.top+'px', width:b.width+'px', height:b.height+'px' });
+  const at = {
+    nw:[b.left, b.top], ne:[b.left+b.width, b.top],
+    sw:[b.left, b.top+b.height], se:[b.left+b.width, b.top+b.height],
+    n:[b.left+b.width/2, b.top], s:[b.left+b.width/2, b.top+b.height],
+    w:[b.left, b.top+b.height/2], e:[b.left+b.width, b.top+b.height/2]
+  };
+  el.selChrome.querySelectorAll('.sel-handle').forEach(h => {
+    const [x,y] = at[h.dataset.dir];
+    h.style.left = (x-5)+'px'; h.style.top = (y-5)+'px';
+  });
+  const bar = document.getElementById('sel-toolbar');
+  if(bar){ bar.style.left = b.left+'px'; bar.style.top = b.top+'px'; }
+  updateStats(b);
+}
+
+function updateStats(b){
+  const node = document.getElementById('ed-stats');
+  if(!node) return;
+  const s = stageRect();
+  let txt = 'stage '+Math.round(s.width)+'\u00D7'+Math.round(s.height)+'px';
+  if(b) txt += ' \u00B7 sel '+Math.round(b.width)+'\u00D7'+Math.round(b.height)+'px';
+  node.textContent = txt;
+}
+
+function deleteSelection(){
+  if(!ed.sel) return;
+  if(ed.sel.type === 'char'){
+    WORK.characters[ed.sel.id].room = null;
+  } else {
+    const i = WORK.objects.findIndex(o => o.id === ed.sel.id);
+    if(i >= 0) WORK.objects.splice(i,1);
+  }
+  ed.sel = null;
+  markDirty(true);
+  renderRoom();
+}
+
+/* ---- keyboard ---- */
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){
+    if(conversation){ e.preventDefault(); closeConversation(); return; }
+    closeModal(); if(EDIT_MODE && ed.sel) select(null); return;
+  }
+  if(!EDIT_MODE || !ed.sel) return;
+  if(/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+
+  const isChar = ed.sel.type === 'char';
+  const step = e.shiftKey ? 1 : 0.2;
+  const target = isChar ? WORK.characters[ed.sel.id].position
+                        : WORK.objects.find(o=>o.id===ed.sel.id).hotspot;
+  let handled = true;
+
+  switch(e.key){
+    case 'ArrowLeft':  target.x = pct(num(target.x) - step); break;
+    case 'ArrowRight': target.x = pct(num(target.x) + step); break;
+    case 'ArrowUp':    target.y = pct(num(target.y) - step); break;
+    case 'ArrowDown':  target.y = pct(num(target.y) + step); break;
+    case '+': case '=': {
+      const d = e.shiftKey ? 2 : 0.5;
+      if(isChar){ const bottom = num(target.y)+num(target.h); target.h = pct(num(target.h)+d); target.y = pct(bottom-num(target.h)); }
+      else target.h = pct(num(target.h)+d);
+      break;
+    }
+    case '-': case '_': {
+      const d = e.shiftKey ? 2 : 0.5;
+      if(isChar){ const bottom = num(target.y)+num(target.h); target.h = pct(Math.max(3,num(target.h)-d)); target.y = pct(bottom-num(target.h)); }
+      else target.h = pct(Math.max(1,num(target.h)-d));
+      break;
+    }
+    case 'Delete': case 'Backspace': deleteSelection(); return;
+    default: handled = false;
+  }
+  if(!handled) return;
+  e.preventDefault();
+  if(isChar) syncCharEl(ed.sel.id); else syncObjEl(ed.sel.id);
+  positionChrome(); updateInspectorValues(); markDirty(true);
+});
+
+/* deselect on empty stage click */
+el.stage.addEventListener('pointerdown', e => {
+  if(!EDIT_MODE) return;
+  if(e.target === el.stage || e.target === el.bg) select(null);
+});
+
+/* ---- baseline guide drag ---- */
+(function(){
+  let dragging = false;
+  el.baseline.addEventListener('pointerdown', e => { dragging = true; e.preventDefault(); });
+  window.addEventListener('pointermove', e => {
+    if(!dragging) return;
+    const s = stageRect();
+    ed.baseline = clamp((e.clientY - s.top)/s.height*100, 0, 100);
+    el.baseline.style.top = ed.baseline.toFixed(1)+'%';
+    const tag = el.baseline.querySelector('.tag');
+    if(tag) tag.textContent = 'floor line ' + ed.baseline.toFixed(1)+'%';
+    saveDraft();
+  });
+  window.addEventListener('pointerup', () => { dragging = false; });
+})();
+
+/* ---- side panel ---- */
+function renderPanel(){
+  if(!EDIT_MODE) return;
+  const activeRoom = state.roomId;
+  const p = [];
+
+  p.push('<div class="ed-sec"><h3>Scene editor<span class="ed-dirty-dot"></span></h3>'+
+    '<div class="ed-row"><button class="ed-btn '+(ed.mode==='characters'?'active':'')+'" data-mode="characters">Characters</button>'+
+    '<button class="ed-btn '+(ed.mode==='hotspots'?'active':'')+'" data-mode="hotspots">Hotspots</button></div></div>');
+
+  /* rooms */
+  p.push('<div class="ed-sec"><h3>Rooms</h3>');
+  PORTAL_WORLD.rooms.forEach(r => {
+    const n = charsInRoom(r.id).length + objsInRoom(r.id).length;
+    p.push('<div class="ed-item '+(r.id===activeRoom?'active':'')+'" data-room="'+r.id+'">'+
+      '<div class="ed-thumb" style="background-image:url(\''+r.image+'\')"></div>'+
+      '<div class="meta"><div class="nm">'+esc(r.name)+'</div><div class="sub">'+n+' item'+(n===1?'':'s')+'</div></div></div>');
+  });
+  p.push('</div>');
+
+  /* characters */
+  p.push('<div class="ed-sec"><h3>Characters</h3>');
+  Object.entries(PORTAL_WORLD.characters).forEach(([id,c]) => {
+    const w = WORK.characters[id];
+    let sub = '<div class="sub dim">not placed</div>';
+    if(w.room === activeRoom) sub = '<div class="sub here">in this room</div>';
+    else if(w.room) sub = '<div class="sub">in '+esc((getRoom(w.room)||{}).name || w.room)+'</div>';
+    const isSel = ed.sel && ed.sel.type==='char' && ed.sel.id===id;
+    p.push('<div class="ed-item '+(isSel?'active':'')+'" data-char="'+id+'">'+
+      '<div class="ed-sprite-thumb"><img src="'+c.sprite+'" alt=""></div>'+
+      '<div class="meta"><div class="nm">'+esc(c.name)+'</div>'+sub+'</div></div>');
+  });
+  p.push('</div>');
+
+  /* objects (hotspots mode) */
+  if(ed.mode === 'hotspots'){
+    p.push('<div class="ed-sec"><h3>Objects</h3>');
+    WORK.objects.forEach(o => {
+      const isSel = ed.sel && ed.sel.type==='obj' && ed.sel.id===o.id;
+      p.push('<div class="ed-item '+(isSel?'active':'')+'" data-obj="'+esc(o.id)+'">'+
+        '<div class="meta"><div class="nm">'+esc(o.label || o.id)+'</div>'+
+        '<div class="sub'+(o.room===activeRoom?' here':'')+'">'+esc((getRoom(o.room)||{}).name || o.room || '—')+'</div></div></div>');
+    });
+    p.push('<button class="ed-btn sm" id="ed-new-hotspot" style="margin-top:6px">+ New hotspot</button></div>');
+  }
+
+  /* inspector */
+  p.push('<div class="ed-sec"><h3>Inspector</h3>'+inspectorHtml()+'</div>');
+
+  /* helpers */
+  p.push('<div class="ed-sec"><h3>Helpers</h3>'+
+    '<div class="ed-row" style="margin-bottom:8px">'+
+      '<button class="ed-btn sm '+(ed.guides?'active':'')+'" id="ed-guides">Guides</button>'+
+      '<button class="ed-btn sm" id="ed-preview">Preview</button>'+
+    '</div>'+
+    '<div class="ed-field"><label>Opacity</label>'+
+      '<input class="ed-slider" type="range" min="30" max="100" value="'+ed.opacity+'" id="ed-opacity" '+(ed.sel&&ed.sel.type==='char'?'':'disabled')+'></div>'+
+    '<div class="ed-stats" id="ed-stats"></div></div>');
+
+  /* save / export */
+  p.push('<div class="ed-sec"><h3>Save</h3>'+
+    '<div class="ed-row" style="margin-bottom:6px">'+
+      '<button class="ed-btn sm" id="ed-copy">Copy JSON</button></div>'+
+    '<div class="ed-row" style="margin-bottom:6px">'+
+      '<button class="ed-btn sm" id="ed-download">Download world_data.js</button></div>'+
+    '<div class="ed-row"><button class="ed-btn sm danger" id="ed-revert">Revert to saved</button></div>'+
+    '<div class="ed-hint" style="margin-top:9px">Drafts autosave locally. Download replaces world_data.js in place, keeping all comments and other fields.</div>'+
+    '</div>');
+
+  el.panel.innerHTML = p.join('');
+  wirePanel();
+  updateStats(selPxBox());
+}
+
+function inspectorHtml(){
+  if(!ed.sel) return '<div class="ed-hint">Nothing selected. Click a '+(ed.mode==='characters'?'character':'hotspot')+' on the stage, or pick one from the list above.</div>';
+
+  if(ed.sel.type === 'char'){
+    const w = WORK.characters[ed.sel.id];
+    const p = w.position;
+    const widthPct = (num(p.h) * (ASPECT[ed.sel.id]||0.35));
+    return '<div class="ed-field"><label>X %</label><input type="number" step="0.1" id="f-x" value="'+num(p.x).toFixed(1)+'"></div>'+
+      '<div class="ed-field"><label>Y %</label><input type="number" step="0.1" id="f-y" value="'+num(p.y).toFixed(1)+'"></div>'+
+      '<div class="ed-field"><label>Height %</label><input type="number" step="0.1" id="f-h" value="'+num(p.h).toFixed(1)+'"></div>'+
+      '<div class="ed-field"><label>Width %</label><input type="number" value="'+widthPct.toFixed(1)+'" disabled></div>'+
+      '<div class="ed-field"><label>Z order</label><input type="number" step="1" id="f-z" value="'+(w.z||0)+'"></div>'+
+      '<div class="ed-row" style="margin-bottom:7px">'+
+        '<button class="ed-btn sm" id="ed-forward">Bring fwd</button>'+
+        '<button class="ed-btn sm" id="ed-back">Send back</button></div>'+
+      '<button class="ed-btn sm danger" id="ed-delete">Remove from room</button>'+
+      '<div class="ed-hint" style="margin-top:8px">X is the sprite\u2019s centre, Y its top edge. Corner handles scale from the feet.</div>';
+  }
+
+  const o = WORK.objects.find(x => x.id === ed.sel.id);
+  const r = o.hotspot;
+  return '<div class="ed-field"><label>ID</label><input class="text" type="text" id="f-id" value="'+esc(o.id)+'"></div>'+
+    '<div class="ed-field"><label>Label</label><input class="text" type="text" id="f-label" value="'+esc(o.label||'')+'"></div>'+
+    '<div class="ed-field"><label>X %</label><input type="number" step="0.1" id="f-x" value="'+num(r.x).toFixed(1)+'"></div>'+
+    '<div class="ed-field"><label>Y %</label><input type="number" step="0.1" id="f-y" value="'+num(r.y).toFixed(1)+'"></div>'+
+    '<div class="ed-field"><label>Width %</label><input type="number" step="0.1" id="f-w" value="'+num(r.w).toFixed(1)+'"></div>'+
+    '<div class="ed-field"><label>Height %</label><input type="number" step="0.1" id="f-h" value="'+num(r.h).toFixed(1)+'"></div>'+
+    '<button class="ed-btn sm danger" id="ed-delete">Delete hotspot</button>';
+}
+
+function updateInspectorValues(){
+  if(!ed.sel) return;
+  const set = (id,v) => { const n = document.getElementById(id); if(n && document.activeElement !== n) n.value = v; };
+  if(ed.sel.type === 'char'){
+    const p = WORK.characters[ed.sel.id].position;
+    set('f-x', num(p.x).toFixed(1)); set('f-y', num(p.y).toFixed(1)); set('f-h', num(p.h).toFixed(1));
+  } else {
+    const r = WORK.objects.find(o=>o.id===ed.sel.id).hotspot;
+    set('f-x', num(r.x).toFixed(1)); set('f-y', num(r.y).toFixed(1));
+    set('f-w', num(r.w).toFixed(1)); set('f-h', num(r.h).toFixed(1));
+  }
+}
+
+function wirePanel(){
+  const $ = id => document.getElementById(id);
+  const on = (id, ev, fn) => { const n = $(id); if(n) n.addEventListener(ev, fn); };
+
+  el.panel.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
+    ed.mode = b.dataset.mode; ed.sel = null;
+    document.body.classList.toggle('mode-hotspots', ed.mode==='hotspots');
+    document.body.classList.toggle('mode-characters', ed.mode==='characters');
+    renderRoom();
+  }));
+
+  el.panel.querySelectorAll('[data-room]').forEach(b => b.addEventListener('click', () => {
+    if(b.dataset.room === state.roomId) return;
+    state.roomId = b.dataset.room; ed.sel = null; renderRoom();
+  }));
+
+  el.panel.querySelectorAll('[data-char]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.char, w = WORK.characters[id];
+    if(w.room !== state.roomId){
+      w.room = state.roomId;
+      w.position = {...DEFAULT_CHAR_POS};
+      markDirty(true);
+      ed.mode = 'characters';
+      document.body.classList.add('mode-characters');
+      document.body.classList.remove('mode-hotspots');
+      ed.sel = {type:'char', id};
+      renderRoom();
+    } else {
+      ed.mode = 'characters';
+      document.body.classList.add('mode-characters');
+      document.body.classList.remove('mode-hotspots');
+      select('char', id);
+    }
+  }));
+
+  el.panel.querySelectorAll('[data-obj]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.obj, o = WORK.objects.find(x=>x.id===id);
+    if(o.room !== state.roomId){ state.roomId = o.room; ed.sel = {type:'obj', id}; renderRoom(); }
+    else select('obj', id);
+  }));
+
+  on('ed-new-hotspot','click', () => {
+    let n = 1; while(WORK.objects.some(o => o.id === 'new_hotspot_'+n)) n++;
+    const id = 'new_hotspot_'+n;
+    WORK.objects.push({ id, room:state.roomId, label:'New hotspot', text:'', isNew:true,
+                        hotspot:{x:"45%",y:"45%",w:"10%",h:"10%"} });
+    ed.sel = {type:'obj', id};
+    markDirty(true); renderRoom(); updateClueCounter();
+  });
+
+  /* inspector fields */
+  const fieldCommit = () => {
+    if(!ed.sel) return;
+    if(ed.sel.type === 'char'){
+      const p = WORK.characters[ed.sel.id].position;
+      const x = $('f-x'), y = $('f-y'), h = $('f-h'), z = $('f-z');
+      if(x) p.x = pct(num(x.value)); if(y) p.y = pct(num(y.value));
+      if(h) p.h = pct(Math.max(3, num(h.value)));
+      if(z) WORK.characters[ed.sel.id].z = parseInt(z.value,10) || 0;
+      syncCharEl(ed.sel.id);
+    } else {
+      const o = WORK.objects.find(x2=>x2.id===ed.sel.id);
+      const x = $('f-x'), y = $('f-y'), w = $('f-w'), h = $('f-h'), lb = $('f-label'), idf = $('f-id');
+      if(x) o.hotspot.x = pct(num(x.value)); if(y) o.hotspot.y = pct(num(y.value));
+      if(w) o.hotspot.w = pct(Math.max(1,num(w.value))); if(h) o.hotspot.h = pct(Math.max(1,num(h.value)));
+      if(lb) o.label = lb.value;
+      if(idf && idf.value.trim() && idf.value !== o.id){
+        const nid = idf.value.trim();
+        if(!WORK.objects.some(z2 => z2.id === nid)){ o.id = nid; ed.sel = {type:'obj', id:nid}; }
+      }
+      syncObjEl(o.id);
+    }
+    markDirty(true); positionChrome();
+  };
+  ['f-x','f-y','f-w','f-h','f-z','f-label','f-id'].forEach(id => {
+    on(id,'input', fieldCommit);
+    on(id,'change', () => { fieldCommit(); renderRoom(); });
+  });
+
+  on('ed-forward','click', () => { bumpZ(1); });
+  on('ed-back','click', () => { bumpZ(-1); });
+  on('ed-delete','click', deleteSelection);
+
+  on('ed-guides','click', () => {
+    ed.guides = !ed.guides;
+    document.body.classList.toggle('guides-on', ed.guides);
+    el.baseline.style.top = ed.baseline.toFixed(1)+'%';
+    renderPanel();
+  });
+
+  on('ed-preview','pointerdown', e => {
+    e.preventDefault();
+    const t0 = Date.now();
+    document.body.classList.add('previewing');
+    const release = () => {
+      window.removeEventListener('pointerup', release);
+      const held = Date.now() - t0;
+      /* a tap gives a timed 3s look; a hold restores as soon as released */
+      setTimeout(() => document.body.classList.remove('previewing'), held < 300 ? 3000 - held : 0);
+    };
+    window.addEventListener('pointerup', release);
+  });
+
+  on('ed-opacity','input', e => {
+    ed.opacity = +e.target.value;
+    if(ed.sel && ed.sel.type === 'char'){
+      const n = el.sprites.querySelector('[data-char-id="'+ed.sel.id+'"]');
+      if(n) n.style.opacity = ed.opacity/100;   /* visual aid only, never exported */
+    }
+  });
+
+  on('ed-copy','click', async () => {
+    const payload = JSON.stringify(exportPayload(), null, 2);
+    try{ await navigator.clipboard.writeText(payload); flash('ed-copy','Copied'); }
+    catch(e){ showModal('<div class="eyebrow">Copy JSON</div><h2>Clipboard blocked</h2><div class="maroon-rule"></div><p>'+esc(payload)+'</p>'); }
+  });
+  on('ed-download','click', downloadWorldData);
+  on('ed-revert','click', () => {
+    WORK = buildWork();
+    try{ localStorage.removeItem(LS_KEY); }catch(e){}
+    ed.sel = null; markDirty(false); renderRoom(); updateClueCounter();
+  });
+}
+
+function bumpZ(dir){
+  if(!ed.sel || ed.sel.type !== 'char') return;
+  const list = charsInRoom(state.roomId).map(([id]) => id);
+  const i = list.indexOf(ed.sel.id);
+  const j = i + dir;
+  if(i < 0 || j < 0 || j >= list.length) return;
+  /* rewrite z as a clean sequence with the two swapped */
+  [list[i], list[j]] = [list[j], list[i]];
+  list.forEach((id,k) => { WORK.characters[id].z = k; });
+  markDirty(true); renderRoom();
+}
+
+function flash(btnId, text){
+  const b = document.getElementById(btnId); if(!b) return;
+  const old = b.textContent; b.textContent = text;
+  setTimeout(() => { b.textContent = old; }, 1200);
+}
+
+/* ---- export ---- */
+function exportPayload(){
+  return {
+    characters: Object.fromEntries(Object.entries(WORK.characters).map(([id,c]) => [id, {
+      room:c.room, position:c.position, z:c.z||0
+    }])),
+    objects: WORK.objects.map(o => ({ id:o.id, room:o.room, label:o.label, hotspot:o.hotspot }))
+  };
+}
+
+/* Patch the real source text so every comment and unrelated field survives. */
+async function downloadWorldData(){
+  let src;
+  try{
+    const res = await fetch('world_data.js', {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    src = await res.text();
+  }catch(err){
+    showModal('<div class="eyebrow">Download</div><h2>Cannot read world_data.js</h2><div class="maroon-rule"></div>'+
+      '<p>The patcher needs to fetch the original file, which the browser blocks on file:// URLs. '+
+      'Serve the folder over http (for example: python -m http.server) and try again, or use Copy JSON.</p>');
+    return;
+  }
+
+  let failed = [];
+
+  /* Ids repeat across the file (e.g. "tornphoto" is both an object id and a key
+     in Naina's `topics`). Patching against the whole file lets one entry's regex
+     run forward into another's block, so each patch is scoped to its own region. */
+  function blockRange(text, keyRe, open, close){
+    const m = keyRe.exec(text);
+    if(!m) return null;
+    const start = text.indexOf(open, m.index);
+    if(start < 0) return null;
+    let depth = 0;
+    for(let i = start; i < text.length; i++){
+      if(text[i] === open) depth++;
+      else if(text[i] === close){ depth--; if(depth === 0) return {start, end:i+1}; }
+    }
+    return null;
+  }
+  function patchRegion(text, range, fn){
+    if(!range) return text;
+    return text.slice(0, range.start) + fn(text.slice(range.start, range.end)) + text.slice(range.end);
+  }
+
+  let out = src;
+
+  /* ---- characters: patch inside the characters:{...} block only ---- */
+  const charsRange = blockRange(out, /characters\s*:\s*\{/, '{', '}');
+  if(!charsRange) failed.push('characters block');
+  out = patchRegion(out, charsRange, block => {
+    Object.entries(WORK.characters).forEach(([id,c]) => {
+      /* scope again to this one character's own sub-block */
+      const own = blockRange(block, new RegExp('(?:^|\\n)\\s{4}'+id+'\\s*:\\s*\\{'), '{', '}')
+               || blockRange(block, new RegExp('\\b'+id+'\\s*:\\s*\\{'), '{', '}');
+      if(!own){ failed.push(id+' block'); return; }
+      block = patchRegion(block, own, sub => {
+        const posLit = '{ x:"'+c.position.x+'", y:"'+c.position.y+'", h:"'+c.position.h+'" }';
+        const posRe = /(position:\s*)\{[^}]*\}(\s*,\s*z:\s*-?\d+)?/;
+        if(posRe.test(sub)) sub = sub.replace(posRe, (m,pre) => pre + posLit + (c.z ? ', z: '+c.z : ''));
+        else failed.push(id+'.position');
+        const roomRe = /(\n\s*room:\s*)("[^"]*"|null)/;
+        if(roomRe.test(sub)) sub = sub.replace(roomRe, (m,pre) => pre + (c.room ? '"'+c.room+'"' : 'null'));
+        else failed.push(id+'.room');
+        return sub;
+      });
+    });
+    return block;
+  });
+
+  /* ---- objects: patch inside the objects:[...] array only ---- */
+  const origIds = new Set(PORTAL_WORLD.objects.map(o => o.id));
+  const objRange = blockRange(out, /objects\s*:\s*\[/, '[', ']');
+  if(!objRange) failed.push('objects block');
+  out = patchRegion(out, objRange, block => {
+    WORK.objects.filter(o => origIds.has(o.id)).forEach(o => {
+      const lit = '{x:"'+o.hotspot.x+'",y:"'+o.hotspot.y+'",w:"'+o.hotspot.w+'",h:"'+o.hotspot.h+'"}';
+      /* require the id to be immediately followed by room:, which only object literals are */
+      const re = new RegExp('(id:"'+o.id+'"\\s*,\\s*room:"[^"]*"[\\s\\S]*?hotspot:\\s*)\\{[^}]*\\}');
+      if(re.test(block)) block = block.replace(re, (m,pre) => pre + lit);
+      else failed.push(o.id+'.hotspot');
+    });
+    return block;
+  });
+
+  /* objects deleted in the editor */
+  const keptIds = new Set(WORK.objects.map(o => o.id));
+  const removed = PORTAL_WORLD.objects.filter(o => !keptIds.has(o.id)).map(o => o.id);
+
+  /* brand-new objects: append inside the objects array, before its closing bracket */
+  const added = WORK.objects.filter(o => !origIds.has(o.id));
+  if(added.length){
+    const lits = added.map(o =>
+      '\n    { id:"'+o.id+'", room:"'+o.room+'", label:'+JSON.stringify(o.label||o.id)+
+      ', hotspot:{x:"'+o.hotspot.x+'",y:"'+o.hotspot.y+'",w:"'+o.hotspot.w+'",h:"'+o.hotspot.h+'"},'+
+      '\n      text:'+JSON.stringify(o.text||"")+',\n      clue:"", foreshadow:false }'
+    ).join(',');
+    const r2 = blockRange(out, /objects\s*:\s*\[/, '[', ']');
+    if(r2) out = out.slice(0, r2.end-1).replace(/,?\s*$/, '') + ',' + lits + '\n  ' + out.slice(r2.end-1);
+    else failed.push('new objects');
+  }
+
+  const blob = new Blob([out], {type:'text/javascript'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'world_data.js';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+
+  let msg = '<p>world_data.js downloaded with your positions patched in. Every comment and unrelated field is preserved.</p>';
+  if(removed.length) msg += '<p><b>Note:</b> deleted hotspots ('+esc(removed.join(', '))+') were left in the file \u2014 remove them by hand if you meant to drop them.</p>';
+  if(failed.length) msg += '<p><b>Could not patch:</b> '+esc(failed.join(', '))+'. Check those by hand.</p>';
+  showModal('<div class="eyebrow">Export</div><h2>Saved</h2><div class="maroon-rule"></div>'+msg);
+  markDirty(false);
+}
+
+/* ---- draft restore ---- */
+function maybeRestoreDraft(){
+  let draft = null;
+  try{ const raw = localStorage.getItem(LS_KEY); if(raw) draft = JSON.parse(raw); }catch(e){}
+  if(!draft || !draft.work) return false;
+  if(!confirm('A saved editor draft was found. Restore it?\n\nCancel loads the positions currently in world_data.js.')){
+    try{ localStorage.removeItem(LS_KEY); }catch(e){}
+    return false;
+  }
+  WORK = draft.work;
+  if(typeof draft.baseline === 'number') ed.baseline = draft.baseline;
+  markDirty(true);
+  return true;
+}
+
+/* ---------------- Writer Studio: analytics + optional Databricks ---------------- */
+function escSql(value){ return String(value == null ? '' : value).replace(/'/g,"''"); }
+function dbxRecord(event){
+  return {event_id:(crypto.randomUUID?crypto.randomUUID():DBX_SESSION_ID+'-'+Date.now()),session_id:DBX_SESSION_ID,type:event.type,
+    character:event.character||'',topic:event.topic||event.topicTag||'',free_text:event.freeText||event.question||event.text||'',
+    answer_type:event.answerType||'',object_id:event.object||'',value:JSON.stringify(event),ts:event.ts};
+}
+function queueDatabricksEvent(event){
+  if(!DBX.enabled) return; dbxQueue.push(dbxRecord(event));
+  if(dbxQueue.length>=20) flushDatabricks();
+  else if(!dbxFlushTimer) dbxFlushTimer=setTimeout(flushDatabricks,10000);
+}
+function flushDatabricks(){
+  if(dbxFlushTimer){clearTimeout(dbxFlushTimer);dbxFlushTimer=null;}
+  if(!DBX.enabled || !dbxQueue.length) return;
+  const batch=dbxQueue.splice(0,20);
+  const values=batch.map(r=>"('"+[r.event_id,r.session_id,r.type,r.character,r.topic,r.free_text,r.answer_type,r.object_id,r.value].map(escSql).join("','")+"',TIMESTAMP '"+escSql(r.ts).replace('T',' ').replace('Z','')+"')").join(',');
+  const statement='INSERT INTO '+DBX.table+' (event_id,session_id,type,character,topic,free_text,answer_type,object_id,value,ts) VALUES '+values;
+  fetch(DBX.proxy,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({warehouse_id:DBX.warehouseId,statement,wait_timeout:'10s'})})
+    .then(r=>{if(!r.ok) throw Error('proxy'); return r.json();}).then(()=>{dbxConnected=true;if(document.body.classList.contains('writer-studio-open'))renderWriterStudio();})
+    .catch(()=>{dbxConnected=false;dbxQueue.unshift(...batch);if(document.body.classList.contains('writer-studio-open'))renderWriterStudio();});
+}
+async function dbxStatement(statement){
+  const res=await fetch(DBX.proxy,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({warehouse_id:DBX.warehouseId,statement,wait_timeout:'10s'})});
+  if(!res.ok) throw Error('Databricks unavailable'); const data=await res.json(); dbxConnected=true; return data;
+}
+function studioLive(){
+  const byType=type=>PORTAL_EVENTS.filter(e=>e.type===type);
+  return {votes:byType('suspect_vote'),questions:byType('question'),free:byType('free_question'),objects:byType('object_examined'),theories:byType('theory_submitted'),exits:byType('portal_exit')};
+}
+function studioBar(label,value,max,live){return '<div class="ws-bar-row'+(live?' live':'')+'"><span>'+esc(label)+(live?'<em class="ws-pulse">+1 just now</em>':'')+'</span><div class="ws-bar"><i style="width:'+Math.min(100,(value/max)*100)+'%"></i></div><b>'+value+'</b></div>';}
+function studioTopicBars(seed,live){const local={};live.forEach(e=>{if(e.character&&e.topic&&e.topic!=='free_text')local[e.character+':'+e.topic]=(local[e.character+':'+e.topic]||0)+1;});return Object.entries(seed).map(([char,rows])=>'<h3>'+esc(PORTAL_WORLD.characters[char].name)+'</h3>'+rows.map(r=>{const n=local[char+':'+r.label.toLowerCase().replace(/[^a-z]/g,'')]||0;return studioBar(r.label,r.count+n,Math.max(...rows.map(x=>x.count)),n);}).join('')).join('');}
+function studioChart(){
+  const p=PORTAL_WORLD.writerStudio.suspicionOverTime, max=45, w=540,h=132, xs=p.map((_,i)=>45+i*(w-80)/(p.length-1));
+  const line=(key,color)=>'<polyline points="'+p.map((r,i)=>xs[i]+','+(h-r[key]/max*(h-20))).join(' ')+'" fill="none" stroke="'+color+'" stroke-width="3"/><text x="'+xs[0]+'" y="'+(h-3)+'" font-size="10" fill="#756d61">'+p[0].episode+'</text><text x="'+xs[1]+'" y="'+(h-3)+'" font-size="10" fill="#756d61">'+p[1].episode+'</text>';
+  return '<div class="ws-chart"><svg viewBox="0 0 '+w+' '+h+'">'+line('Ritu','#d8a94e')+line('Naina','#8f6c65')+line('Vikram','#42747b')+'</svg></div>';
+}
+function studioTheoryFeed(live){const seeded=PORTAL_WORLD.portalRitual.theories.map(x=>'<article><strong>'+esc(x.name)+' · seeded</strong><br>'+esc(x.text)+'</article>').join('');const your=live.map(x=>'<article class="live"><strong>Your session · '+esc(x.suspect||'no suspect')+'</strong><br>'+esc(x.text)+'</article>').join('');return your+seeded;}
+const BAHU_STAGES=[
+  {name:'Story analysis',out:{locations:[{id:'rajput_haveli',name:'Rajput family drawing room',description:'A ceremonial room where hospitality becomes surveillance.',episodesPresent:[1,2,3],dramaticWeight:9}],characters:[{id:'meera',name:'Meera',age:29,role:'wronged daughter-in-law',appearance:'precise, watchful',clothing:'maroon silk sari',emotionalState:'controlled fury',knowsAbout:['the affair','the forged property papers'],concealing:['she photographed every page']},{id:'adi',name:'Aditya',age:33,role:'husband',appearance:'polished',clothing:'cream kurta and teal waistcoat',emotionalState:'careless confidence',knowsAbout:['the transfer'],concealing:['the affair']},{id:'kavya',name:'Kavya',age:27,role:'cousin',appearance:'elegant, brittle',clothing:'cream lehenga',emotionalState:'defiant guilt',knowsAbout:['the affair'],concealing:['the necklace']}] }},
+  {name:'Unlock point recommendation',out:{recommended:{afterEpisode:2,location:'rajput_haveli',reasoning:'Everyone is plausibly in the house after the anniversary dinner, while the forged-property tension is visible but not yet explained. The world lets listeners test loyalties without exposing Meera’s plan.',charactersPresent:['Meera','Adi','Kavya']},alternatives:[{afterEpisode:1,score:67,why:'High co-location but too little shared suspicion.'},{afterEpisode:3,score:74,why:'Richer tension but risks revealing Meera’s evidence.'}]}},
+  {name:'Art prompt generation',out:{scenePrompt:'Modern graphic novel illustration. Bold clean ink linework, flat cel-shaded colour, limited palette of deep maroon, antique gold, dusty teal and warm cream, heavy black shadows, minimal texture, subtle halftone dot shading. High contrast, uncluttered composition, generous negative space. EMPTY Rajput drawing room, clear standing space, no text, no speech bubbles, no panel borders, no watermark.',characterPrompt:'Modern graphic novel illustration. Bold clean ink linework, flat cel-shaded colour, limited palette of deep maroon, antique gold, dusty teal and warm cream. Three full-body figures STANDING evenly spaced on flat plain light grey: Meera in maroon silk, Adi in cream and teal, Kavya in warm cream. No text, watermark or props.'}},
+  {name:'Image generation',out:{scene:'bahu_scene.png · cached image · 1.8s',characters:'bahu_characters.png · cached image · 2.1s'}},
+  {name:'Dialogue + knowledge gate generation',out:{summary:'3 characters · 18 responses · 7 objects · 5 clue dependencies',characters:{meera:{persona:'A perfect bahu whose politeness is now a weapon.',knows:['Adi and Kavya are transferring her property'],conceals:['She has proof'],doesNotKnow:['Who forged her signature'],topics:['The necklace','The file','Dadi']},adi:{persona:'Charming when watched, cruel when certain.',coverStory:'The lawyer sent routine papers.',topics:['The property file','Kavya','The anniversary']},kavya:{persona:'Meera’s cousin, dressed for a celebration she cannot enjoy.',deflection:'She says the necklace was borrowed.',topics:['The necklace','Adi','Rohit']}}}},
+  {name:'Assembly',out:{file:'world_data_bahu.js',schema:'VOICE_CAST + PORTAL_WORLD',preview:'Rajput drawing room · unlocks after Episode 2 · Meera, Adi, Kavya'}}
+];
+function bahuWorldFile(){return '/* Generated Pocket Portal world — The Perfect Bahu */\nconst VOICE_CAST={meera:{voice:"shimmer",persona:"A 29-year-old Indian woman, polished and controlled."},adi:{voice:"onyx",persona:"A 33-year-old Indian man, charming and evasive."},kavya:{voice:"nova",persona:"A 27-year-old Indian woman, guarded and brittle."}};\nconst PORTAL_WORLD={series:"The Perfect Bahu",unlockAfterEpisode:2,title:"After the Anniversary",subtitle:"Rajput Haveli",rooms:[{id:"drawing",name:"Drawing Room",image:"bahu_scene.png",entry:true,characters:["meera","adi","kavya"],exits:[]}],characters:{meera:{name:"Meera",room:"drawing",topics:[{id:"necklace",label:"The necklace",always:true}],fallbackResponses:{necklace:{t:"That necklace belonged to my mother.",vd:"Emotion: controlled hurt."}}},adi:{name:"Adi",room:"drawing",topics:[{id:"file",label:"The property file",always:true}],fallbackResponses:{file:{t:"Routine papers, nothing more.",vd:"Emotion: easy charm."}}},kavya:{name:"Kavya",room:"drawing",topics:[{id:"adi",label:"Adi",always:true}],fallbackResponses:{adi:{t:"Why are you asking me about him?",vd:"Emotion: brittle deflection."}}}},objects:[{id:"property_file",room:"drawing",label:"Property file",hotspot:{x:"42%",y:"67%",w:"14%",h:"12%"},text:"A file that should not be open.",clue:"Someone moved the papers.",vd:"Emotion: wary recognition."}]};';}
+let studioWorldMode='CACHED', studioRun=null, studioRefreshNote='';
+function worldStageHtml(stage,index){const run=studioRun&&studioRun[index],status=run?run.status:'queued',tag=run&&run.cached?' · cached':'';let content='';if(run&&status==='done'){content='<details class="ws-details"><summary>Expandable output</summary><pre>'+esc(JSON.stringify(stage.out,null,2))+'</pre>'+(index===3?'<div class="ws-images"><figure><img src="bahu_scene.png" alt="Generated empty Rajput drawing room"><figcaption>Scene · '+esc(stage.out.scene)+'</figcaption></figure><figure><img src="bahu_characters.png" alt="Generated Meera, Adi and Kavya character sheet"><figcaption>Character sheet · '+esc(stage.out.characters)+'</figcaption></figure></div>':'')+(index===5?'<div class="ws-preview"><img src="bahu_scene.png" alt="Bahu world preview"><div>After Episode 2<small>Meera · Adi · Kavya</small></div></div><button class="ws-button ws-download" type="button" data-download-bahu>Download world_data_bahu.js</button>':'');}
+return '<article class="ws-stage '+status+'"><div class="ws-stage-top"><span class="ws-stage-title">'+String(index+1).padStart(2,'0')+' · '+stage.name+'</span><span class="ws-stage-meta">'+(run?run.duration+'ms':'—')+'</span><span class="ws-stage-status">'+status+tag+'</span></div>'+content+'</article>';}
+async function runWorldPipeline(){if(studioRun&&studioRun.some(x=>x.status==='running'))return;studioRun=BAHU_STAGES.map(()=>({status:'queued',duration:0,cached:false}));renderWriterStudio();for(let i=0;i<BAHU_STAGES.length;i++){studioRun[i].status='running';renderWriterStudio();const started=performance.now();let cached=studioWorldMode==='CACHED';if(!cached&&typeof window.WORLD_GENERATOR==='function'){try{await Promise.race([window.WORLD_GENERATOR(i,BAHU_STAGES[i].out),new Promise((_,reject)=>setTimeout(()=>reject(Error('timeout')),45000))]);}catch(e){cached=true;}}else if(!cached) cached=true;await new Promise(resolve=>setTimeout(resolve,280+i*55));studioRun[i]={status:'done',duration:Math.round(performance.now()-started),cached};renderWriterStudio();}}
+function downloadBahuWorld(){const blob=new Blob([bahuWorldFile()],{type:'text/javascript'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='world_data_bahu.js';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1200);}
+async function refreshDatabricks(){studioRefreshNote='Refreshing…';renderWriterStudio();try{const q='SELECT type, character, topic, object_id, answer_type, COUNT(*) AS events FROM '+DBX.table+' GROUP BY type, character, topic, object_id, answer_type';const r=await dbxStatement(q);const rows=(r.result&&r.result.data_array?r.result.data_array:[]);studioRefreshNote='Databricks returned '+rows.length+' aggregate rows.';}catch(e){studioRefreshNote='Local + seeded aggregates in use.';dbxConnected=false;}renderWriterStudio();}
+async function regenerateInsights(){studioRefreshNote='Generating insight…';renderWriterStudio();try{const payload=JSON.stringify({suspicion:PORTAL_WORLD.writerStudio.suspicion,session:studioLive().votes.length});const sql="SELECT ai_query('databricks-meta-llama-3-3-70b-instruct', CONCAT('You are advising a soap-opera scriptwriter. In two sentences, interpret this audience data and recommend one concrete change for the next episode: ', '"+escSql(payload)+"')) AS insight";const r=await dbxStatement(sql);const v=r.result&&r.result.data_array&&r.result.data_array[0]&&r.result.data_array[0][0];if(v)PORTAL_WORLD.writerStudio.theoryInsight=v;studioRefreshNote=v?'Insight regenerated in Databricks.':'Seeded insight retained.';}catch(e){studioRefreshNote='Seeded insight retained (Databricks unavailable).';dbxConnected=false;}renderWriterStudio();}
+function renderWriterStudio(){
+  const s=PORTAL_WORLD.writerStudio,live=studioLive(),votes={...s.suspicion};live.votes.forEach(e=>votes[e.suspect]=(votes[e.suspect]||0)+1);const max=Math.max(...Object.values(votes));
+  const voteRows=Object.entries(votes).map(([name,n])=>studioBar(name,n,max,live.votes.some(e=>e.suspect===name))).join('');
+  const freeRows=s.freeText.map(row=>'<div class="ws-rank"><span><b>'+esc(row.tag)+'</b><details class="ws-details"><summary>View raw questions</summary><ul>'+row.questions.map(q=>'<li>'+esc(q)+'</li>').join('')+'</ul></details></span><b>'+row.count+(live.free.filter(e=>e.topicTag===row.tag).length||'')+'</b></div>').join('');
+  const answerColors={ANSWERED:'#668d68',DOESNT_KNOW:'#9ba4a1',DEFLECTED:'#d8a94e',OUT_OF_WORLD:'#8c6b82'};const stack=Object.entries(s.answerTypes).map(([k,v])=>'<i title="'+k+' '+v+'%" style="width:'+v+'%;background:'+answerColors[k]+'"></i>').join('');
+  const objects=PORTAL_WORLD.objects.slice().sort((a,b)=>s.objects[b.id]-s.objects[a.id]).map(o=>studioBar(o.label,(s.objects[o.id]||0)+live.objects.filter(e=>e.object===o.id).length,100,live.objects.some(e=>e.object===o.id))).join('');
+  el.writerStudio.innerHTML='<div class="ws-shell"><header class="ws-header"><div class="ws-brand"><div class="ws-mark">S</div><div><p class="ws-eyebrow">StoryPulse · creator tools</p><h1>Writer Studio</h1><p class="ws-subtitle">The Night Before the Wedding · Episode 2 read</p></div></div><div><div class="ws-actions"><button class="ws-button" type="button" data-close-studio>Back to portal</button><button class="ws-button" type="button" data-refresh-dbx>Refresh from Databricks</button><button class="ws-button primary" type="button" data-regenerate-insights>Regenerate insights (Databricks)</button></div><div class="ws-status"><i class="ws-dot '+(dbxConnected?'connected':'')+'"></i>Databricks: '+(dbxConnected?'connected':'local only')+'</div></div></header><div class="ws-callout"><span>Aggregates simulated at demo scale; your session merged live.</span><span>'+esc(studioRefreshNote||('Seeded base: '+s.scale.toLocaleString()+' engaged listeners'))+'</span></div><section class="ws-grid"><article class="ws-card"><h2>Suspicion board</h2><p class="ws-note">Who listeners name after Episode 2.</p>'+voteRows+'<h3>Suspicion over time</h3>'+studioChart()+'<p class="ws-insight">Suspicion is spreading, not narrowing. Your misdirection is working — but 31% still have no theory at all.</p></article><article class="ws-card"><h2>What they asked</h2><p class="ws-note">Ranked by character and question intent.</p>'+studioTopicBars(s.topics,live.questions)+'<h3>The question the audience wants answered</h3><p class="ws-insight">Why was Ritu upstairs at midnight?</p><h3>Free-text intents</h3>'+freeRows+'<h3>How the gate responded</h3><div class="ws-stack">'+stack+'</div><p class="ws-note">'+Object.entries(s.answerTypes).map(([k,v])=>k+' '+v+'%').join(' · ')+'</p></article><article class="ws-card"><h2>What they found</h2><p class="ws-note">Object discovery rate across engaged listeners.</p><div class="ws-object-grid">'+objects+'</div><p class="ws-insight">Only 22% found the empty key hook — your best clue is being missed.</p><div class="ws-kpis"><div class="ws-kpi"><b>'+s.averages.clues+'</b><span>Average clues found</span></div><div class="ws-kpi"><b>'+s.averages.minutes+' min</b><span>Average portal time</span></div></div></article><article class="ws-card"><h2>Theory wall</h2><p class="ws-note">'+s.theoryClusters.map(x=>x.percent+'% '+x.label).join(' · ')+'</p><div class="ws-feed">'+studioTheoryFeed(live.theories)+'</div><p class="ws-insight">'+esc(s.theoryInsight)+'</p></article><article class="ws-card wide"><h2>Audience read + recommendations</h2><p class="ws-note">Derived from questions, object paths, and suspect choices.</p><div class="ws-meters">'+s.audienceRead.map(m=>'<div class="ws-meter"><b>'+m.name+'</b><span>'+m.a+' '+m.av+'</span><span>'+m.b+' '+m.bv+'</span></div>').join('')+'</div><ul class="ws-recs">'+s.recommendations.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul><p class="ws-footer">Signals reflect engaged listeners and the options offered. Use them to know when to satisfy expectation — and when to deliberately subvert it.</p></article></section><section class="ws-world"><div class="ws-world-head"><div><p class="ws-eyebrow">Audio-only series → explorable world</p><h2>Generate World · The Perfect Bahu</h2><p class="ws-subtitle">A staged, inspectable world-building pipeline.</p></div><div class="ws-actions"><button class="ws-toggle '+(studioWorldMode==='LIVE'?'active':'')+'" data-world-mode="LIVE" type="button">Live</button><button class="ws-toggle '+(studioWorldMode==='CACHED'?'active':'')+'" data-world-mode="CACHED" type="button">Cached</button><button class="ws-button primary" data-run-world type="button">Run 6 stages</button></div></div><div class="ws-stage-list">'+BAHU_STAGES.map(worldStageHtml).join('')+'</div></section></div>';
+  el.writerStudio.querySelector('[data-close-studio]').addEventListener('click',toggleWriterStudio);el.writerStudio.querySelector('[data-refresh-dbx]').addEventListener('click',refreshDatabricks);el.writerStudio.querySelector('[data-regenerate-insights]').addEventListener('click',regenerateInsights);el.writerStudio.querySelectorAll('[data-world-mode]').forEach(b=>b.addEventListener('click',()=>{studioWorldMode=b.dataset.worldMode;renderWriterStudio();}));el.writerStudio.querySelector('[data-run-world]').addEventListener('click',runWorldPipeline);const d=el.writerStudio.querySelector('[data-download-bahu]');if(d)d.addEventListener('click',downloadBahuWorld);
+}
+function toggleWriterStudio(){document.body.classList.toggle('writer-studio-open');if(document.body.classList.contains('writer-studio-open'))renderWriterStudio();}
+
+/* ---------------- boot ---------------- */
+function boot(){
+  el.title.textContent = PORTAL_WORLD.title;
+  el.subtitle.textContent = PORTAL_WORLD.subtitle;
+  preloadAll();
+
+  if(EDIT_MODE){
+    document.body.classList.add('edit-mode','mode-characters');
+    maybeRestoreDraft();
+    el.baseline.style.top = ed.baseline.toFixed(1)+'%';
+    window.addEventListener('resize', () => positionChrome());
+  }
+  updateClueCounter();
+  startCountdown();
+  startPresence();
+  el.writerStudioToggle.addEventListener('click',toggleWriterStudio);
+  renderRoom();
+  if(!EDIT_MODE) showEntryCard();
+}
+boot();
+let portalIsOpen=false, portalEpisodeNumber=2;
+function portalStopAudio(){
+  try{ stopObjectNarration(); }catch(e){}
+  try{ if(typeof activePortalAudio!=='undefined'&&activePortalAudio){activePortalAudio.pause();activePortalAudio=null;} }catch(e){}
+  try{ if(typeof activeObjectAudio!=='undefined'&&activeObjectAudio){activeObjectAudio.pause();activeObjectAudio=null;} }catch(e){}
+}
+window.PocketPortal={
+  open(episodeNumber){ portalEpisodeNumber=Number(episodeNumber)||2; portalIsOpen=true; portalStopAudio(); renderRoom(); showEntryCard(); },
+  close(){
+    portalStopAudio(); portalIsOpen=false;
+    const vote=typeof exitRitual!=='undefined'&&exitRitual&&exitRitual.suspect || (PORTAL_EVENTS.filter(e=>e.type==='suspect_vote').at(-1)||{}).suspect || null;
+    try{ window.parent!==window&&window.parent.postMessage({type:'pocketportal-close',vote,events:PORTAL_EVENTS},'*'); }catch(e){}
+  },
+  getEvents(){return PORTAL_EVENTS.slice();},
+  isOpen(){return portalIsOpen;}
+};
+})();
+</script>
+</body>
+</html>

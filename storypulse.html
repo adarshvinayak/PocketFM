@@ -1,0 +1,2530 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B0A10">
+<title>STORYPULSE — stories that remember what you chose</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="config.js"></script>
+<script>
+tailwind.config = {
+  theme: { extend: {
+    colors: {
+      ink:"#0B0A10", panel:"#14131C", line:"#26242F",
+      bone:"#EDE9DE", muted:"#8B8FA0",
+      blood:"#D9493F", gold:"#D8A94E", indigo:"#5B67D8",
+      paper:"#F4F2EC", slate2:"#20242E"
+    },
+    fontFamily: {
+      display:["Fraunces","Georgia","serif"],
+      body:["Inter","system-ui","sans-serif"]
+    }
+  }}
+};
+</script>
+<style>
+  html,body{margin:0;background:#0B0A10;color:#EDE9DE;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  ::selection{background:rgba(91,103,216,.4)}
+  .grain::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.055;mix-blend-mode:overlay;
+    background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2"/></filter><rect width="180" height="180" filter="url(%23n)"/></svg>')}
+  .vignette::before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 42%, transparent 52%, rgba(0,0,0,.55) 100%)}
+  .wf{display:flex;gap:3px;align-items:center;height:44px}
+  .wf i{flex:1;border-radius:2px;background:currentColor;transform-origin:center;
+    animation:wfp .9s ease-in-out infinite alternate;animation-play-state:paused}
+  .wf.on i{animation-play-state:running}
+  @keyframes wfp{from{transform:scaleY(.28)}to{transform:scaleY(1)}}
+  .fadeup{animation:fadeup .5s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes fadeup{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  .fadein{animation:fadein .6s ease both}
+  @keyframes fadein{from{opacity:0}to{opacity:1}}
+  .pulsedot{animation:pdot 1.8s infinite}
+  @keyframes pdot{0%{box-shadow:0 0 0 0 rgba(91,103,216,.55)}70%{box-shadow:0 0 0 9px rgba(91,103,216,0)}100%{box-shadow:0 0 0 0 rgba(91,103,216,0)}}
+  .plus1{animation:plus1 1.6s ease both}
+  @keyframes plus1{0%{background:rgba(91,103,216,.28)}100%{background:transparent}}
+  .barfill{transition:width .9s cubic-bezier(.2,.8,.2,1)}
+  .shimmer{position:relative;overflow:hidden}
+  .shimmer::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);animation:shim 1.4s infinite}
+  @keyframes shim{to{transform:translateX(100%)}}
+  .compose{animation:composep 1.6s ease-in-out infinite}
+  @keyframes composep{0%,100%{opacity:.45}50%{opacity:1}}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.01ms !important}}
+  /* Portal shell: isolated document keeps the two existing runtimes collision-free. */
+  #portal-root{display:none;position:fixed;inset:0;z-index:9999;background:#09090b}
+  #portal-root.is-open{display:block}#portal-root iframe{width:100%;height:100%;border:0;display:block}
+  .portal-hook{min-height:100dvh;display:grid;place-items:center;padding:22px;background:rgba(8,7,12,.82);backdrop-filter:blur(10px);position:relative;overflow:hidden}
+  .portal-hook:before{content:"";position:absolute;inset:0;background:linear-gradient(rgba(9,8,12,.28),rgba(9,8,12,.78)),url('hall.png') center/cover;filter:brightness(.52);transform:scale(1.03)}
+  .portal-hook-card{position:relative;width:min(560px,100%);text-align:center;color:#ede9de}.portal-hook-line{height:1px;background:#d8a94e;margin:26px 0;animation:portalLine 1.1s ease both;box-shadow:0 0 15px rgba(216,169,78,.6)}
+  @keyframes portalLine{from{transform:scaleX(0)}to{transform:scaleX(1)}}.portal-hook-card h1{font-family:Fraunces,Georgia,serif;font-size:clamp(31px,7vw,55px);line-height:1.04;margin:0}.portal-hook-card h1 span{display:block;margin-top:8px;animation:portalRise .7s .55s both}.portal-hook-card h1 span+span{animation-delay:1s}@keyframes portalRise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}.portal-step{margin-top:26px;width:100%;border:0;border-radius:999px;padding:16px;background:#d8a94e;color:#21190d;font:800 13px Inter,sans-serif;letter-spacing:.13em;text-transform:uppercase;cursor:pointer;animation:portalPulse 2s infinite}.portal-skip{margin-top:14px;background:transparent;border:0;color:#b7af9f;text-decoration:underline;cursor:pointer;font:13px Inter,sans-serif}.portal-presence{margin-top:18px;color:#c7bdad;font-size:12px}.portal-presence i{display:inline-block;width:7px;height:7px;background:#d8a94e;border-radius:50%;margin-right:7px;animation:pdot 1.8s infinite}.portal-open-pill{position:fixed;top:18px;right:18px;z-index:100;border:1px solid rgba(216,169,78,.8);background:#17131a;color:#d8a94e;border-radius:999px;padding:7px 10px;font:800 10px Inter,sans-serif;letter-spacing:.1em;cursor:pointer}.portal-return{min-height:100dvh;display:grid;place-items:center;padding:20px;background:#0b0a10;color:#ede9de}.portal-return-card{width:min(440px,100%);padding:28px;border:1px solid rgba(216,169,78,.45);background:#15131b;border-radius:18px;text-align:center}.portal-return-card h1{font:700 29px/1.1 Fraunces,Georgia,serif;margin:11px 0}.portal-return-card button{width:100%;margin-top:18px;border:0;border-radius:10px;padding:14px;background:#d8a94e;color:#21190d;font:800 12px Inter,sans-serif;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="portal-root" aria-hidden="true"><iframe id="portal-frame" title="Pocket Portal" src="pocket-portal.html"></iframe></div>
+<script>
+window.STORYPULSE_EVENTS=window.STORYPULSE_EVENTS||[];
+window.StoryPulsePortal={
+  open:function(episodeNumber){window.dispatchEvent(new Event('storypulse:portal-open'));var root=document.getElementById('portal-root'),frame=document.getElementById('portal-frame');root.classList.add('is-open');root.setAttribute('aria-hidden','false');var go=function(){try{frame.contentWindow.PocketPortal.open(episodeNumber);}catch(e){}};if(frame.contentWindow&&frame.contentWindow.PocketPortal)go();else frame.addEventListener('load',go,{once:true});},
+  close:function(){var root=document.getElementById('portal-root');root.classList.remove('is-open');root.setAttribute('aria-hidden','true');},
+  isOpen:function(){return document.getElementById('portal-root').classList.contains('is-open');}
+};
+window.PocketPortal={open:window.StoryPulsePortal.open,close:window.StoryPulsePortal.close,isOpen:window.StoryPulsePortal.isOpen,getEvents:function(){try{return document.getElementById('portal-frame').contentWindow.PocketPortal.getEvents();}catch(e){return [];}}};
+window.addEventListener('message',function(e){if(!e.data||e.data.type!=='pocketportal-close')return;window.StoryPulsePortal.close();(e.data.events||[]).forEach(function(x){window.STORYPULSE_EVENTS.push(Object.assign({surface:'portal'},x));});window.dispatchEvent(new CustomEvent('storypulse:portal-closed',{detail:e.data}));});
+</script>
+<script type="text/babel" data-presets="react">
+const {useState,useEffect,useRef,useMemo,useCallback} = React;
+
+/* =====================================================================
+   CONFIG
+===================================================================== */
+const GEN_MODE = "hybrid";   // "live" | "hybrid" | "seed"
+const apiKey = () => window.OPENAI_API_KEY || "";  // set in config.js, kept out of app code
+
+const hasKey = () => !!apiKey() && !/PASTE/i.test(apiKey());
+const liveAllowed = () => GEN_MODE !== "seed" && hasKey();
+
+/* =====================================================================
+   UTILS
+===================================================================== */
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const wordCount=s=>(s||"").trim().split(/\s+/).length;
+const estMs=s=>Math.max(1600, wordCount(s)*400+700); // ~150 wpm read pace
+const hashStr=s=>{let h=0;for(let i=0;i<s.length;i++){h=((h<<5)-h+s.charCodeAt(i))|0}return (h>>>0).toString(36)};
+const fmtNum=n=>n.toLocaleString("en-IN");
+const TRAITS=["caution","aggression","trust"];
+const TRAIT_LABEL={caution:"Caution",aggression:"Aggression",trust:"Trust"};
+const dominantTrait=t=>{
+  let best="caution",bv=-1;
+  for(const k of ["caution","trust","aggression"]){ if((t[k]||0)>bv){bv=t[k]||0;best=k;} }
+  return best;
+};
+const PATHS={
+  caution:{name:"The Cautious Path"},
+  aggression:{name:"The Defiant Path"},
+  trust:{name:"The Trusting Path"}
+};
+/* =====================================================================
+   SEED CONTENT — SERIES 1: THE PERFECT BAHU (revenge drama)
+   Every narrated segment carries its own voiceDirection (vd).
+===================================================================== */
+const HOLLOW = {
+  id:"hollow",
+  title:"The Perfect Bahu",
+  genre:"Revenge Drama",
+  voice:"onyx",
+  logline:"She served sweets to fifty guests with a smile — ten minutes after seeing her husband with her own cousin sister.",
+  theme:{
+    accent:"#C0392B",
+    cardBg:"radial-gradient(120% 90% at 80% 0%, rgba(192,57,43,.34), transparent 60%), linear-gradient(160deg,#2A1116,#0C0A0E)",
+    playerBg:"radial-gradient(130% 80% at 50% 0%, rgba(192,57,43,.18), transparent 55%), linear-gradient(180deg,#1A0D11,#0B0A10)",
+    grain:true
+  },
+  stats:{listeners:4820,completion:74,avgChoices:2.9,replayRate:34},
+  bible:{
+    characters:[
+      "Meera Rajput, 29 — the perfect daughter-in-law. Everyone's favourite. Nobody's suspect.",
+      "Aditya 'Adi' Rajput, 33 — her husband. Smiles at everyone. Lies to everyone.",
+      "Kavya, 27 — Meera's own cousin sister. Engaged to Rohit. Sleeping with Adi.",
+      "Dadi — Adi's grandmother. The house is in her name. She misses nothing.",
+      "Sushma 'Mummyji' — mother-in-law. Protects her son before her truth.",
+      "Rohit Malhotra — Kavya's rich fiancé. Does not know yet."
+    ],
+    facts:[
+      "Meera's late father left her a factory property in Nashik.",
+      "Adi and Kavya are secretly transferring that property using forged papers.",
+      "Kavya wears Meera's dead mother's necklace — Adi gave it to her.",
+      "The Rajput house is in Dadi's name, not Adi's.",
+      "Meera photographed every page of the property file."
+    ],
+    mysteries:[
+      "Who forged Meera's signature at the lawyer's office?",
+      "How long has Mummyji known about the affair?",
+      "Will Dadi protect her grandson or the family name?"
+    ],
+    rules:[
+      "The affair cannot be exposed publicly before episode 4.",
+      "Meera never signs the property papers.",
+      "Dadi does not openly take Meera's side before episode 3.",
+      "Adi and Kavya must not learn that Meera knows, before episode 4.",
+      "Nobody is killed and no police case decides this — the family decides."
+    ]
+  },
+  cbVd:"A private memory surfacing mid-scene; quieter and closer than the surrounding narration.",
+  episodes:[
+    { n:1, title:"The Anniversary", ambient:"warm",
+      segments:[
+        {turns:[
+          {sp:"narrator", t:"Twenty-five years of my in-laws' marriage. Fifty guests. I served sweets to all of them with a smile.",
+           vd:"Warm and proud, a good wife enjoying a family party. Simple, spoken, unhurried."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"Then I went upstairs for more plates. My husband's voice came from the guest room.",
+           vd:"The warmth drains out. Dread creeping in, quiet and controlled."},
+          {sp:"adi", t:"Once Meera signs the papers, her father's property is ours. She trusts me completely.",
+           vd:"Smooth, casual, pleased with himself. The cruelty is in how relaxed he sounds — no urgency at all."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"A woman laughed. I knew that laugh. I pushed the door open.",
+           vd:"Dread arriving. Quiet, tight, breath held between sentences."},
+          {sp:"narrator", t:"My own cousin sister Kavya was in my husband's arms — wearing my dead mother's necklace.",
+           vd:"Devastated but silent. Flat, almost numb. Let the last five words land alone.", beat:true}
+        ]}
+      ],
+      callbackIndex:null, callbacks:null,
+      decision:{
+        id:"r-d1", character:"Meera", prompt:"Fifty guests downstairs. What did Meera do?",
+        endPosition:"Late that night. Meera lies awake in the dark, planning.",
+        options:[
+          {id:"r1a", label:"Slap her right there", desc:"Fifty guests downstairs. Let them all hear it.",
+           canonStatus:"REDIRECTED", traitWord:"anger",
+           violatedRule:"The affair cannot be exposed publicly before episode 4.",
+           reconcileTurns:[
+             {sp:"narrator", t:"I slapped her. Kavya screamed before my hand even landed.", vd:"Sharp, decisive, breath ragged — the action already over."},
+             {sp:"kavya", t:"Didi, you're hurting me!", vd:"Performed tears, instantly on cue. Sweet and wounded — she is acting, and doing it well."},
+             {sp:"narrator", t:"The guests came running. Adi held her, not me. In this house, tears beat truth.", vd:"Bitter realization landing quiet and flat."}
+           ],
+           interlude:{turns:[
+             {sp:"narrator", t:"All night the relatives whispered about me. Jealous. Mad. Bitter. Adi did not come to bed.", vd:"Trembling, holding back angry tears. Voice tight, close to breaking."},
+             {sp:"narrator", t:"And I learned my first lesson: if I shout, I lose. If I smile, they relax. So I lay in the dark and started planning.", vd:"Cooling into cold resolve. Flat, quiet, final."}
+           ]},
+           stateChanges:["Meera's aggression +1","The family thinks Meera is jealous","New proof: Kavya cries on cue and everyone believes her"],
+           traits:{aggression:1}, seed:1180},
+          {id:"r1b", label:"Close the door and smile", desc:"Say nothing. Go downstairs. Serve dessert.",
+           canonStatus:"PASSED", traitWord:"patience",
+           reconcileTurns:null,
+           interlude:{turns:[
+             {sp:"narrator", t:"I closed the door softly. Then I went down and served dessert to fifty guests. I laughed at my father-in-law's jokes. I even packed sweets for Kavya to take home.", vd:"Pleasant, hostess-warm, performing normalcy perfectly. Something dead underneath, but keep it hidden."},
+             {sp:"kavya", t:"You're the best, didi.", vd:"Sweet, affectionate, utterly unaware. Light and warm — she suspects nothing."},
+             {sp:"narrator", t:"That night I lay awake, planning.", vd:"The mask drops. Flat, quiet, cold."}
+           ]},
+           stateChanges:["Meera's caution +1","Kavya still thinks Meera saw nothing","New proof: they will talk freely in front of her"],
+           traits:{caution:1}, seed:2340},
+          {id:"r1c", label:"Tell Mummyji tonight", desc:"She is his mother. She has a right to know.",
+           canonStatus:"REDIRECTED", traitWord:"trust",
+           violatedRule:null,
+           reconcileTurns:[
+             {sp:"narrator", t:"Mummyji patted my hand.", vd:"Neutral, watching, waiting for what comes next."},
+             {sp:"mummyji", t:"You're tired, beta. My Adi would never.", vd:"Falsely sweet, dismissive, already defending her son before hearing anything real."},
+             {sp:"narrator", t:"Ten minutes later I heard her repeating every word of it to him.", vd:"Cold realization, flat and quiet."}
+           ],
+           interlude:{turns:[
+             {sp:"narrator", t:"So now he knew I was watching. Mummyji smiled at me all evening like I was a sick child.", vd:"Hurt and humiliated, swallowing it down. Voice tight."},
+             {sp:"narrator", t:"But when I turned around, Dadi was looking straight at me from her chair. She had heard everything. She said nothing. I lay awake that night, planning.", vd:"A small spark of hope breaking through. Quieter, watchful, something steadying."}
+           ]},
+           stateChanges:["Meera's trust +1","Adi knows Meera is watching him","New proof: Dadi heard it too — and stayed quiet"],
+           traits:{trust:1}, seed:690}
+        ],
+        freeSeed:{count:640, intents:[["Record them on my phone",412],["Take back my mother's necklace",286],["Call my brother",158]]},
+        insightFallback:"56% smiled and waited. Your audience wants Meera patient, not loud — they are playing the long game with her. Give them one more silent win before she strikes."
+      }
+    },
+    { n:2, title:"Two Sugars", ambient:"tension",
+      segments:[
+        {turns:[
+          {sp:"narrator", t:"Next morning I made Adi's tea. Two sugars, like always. I smiled and asked about his day.",
+           vd:"Fake sweetness, performed for a husband. Light and wifely — deliberately too normal."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"His phone buzzed on the table.", vd:"Alert, quick attention. Neutral until she recognizes the name."},
+          {sp:"kavya", t:"Lawyer confirmed Tuesday.", vd:"Read as a text message — flat, quick, no performance, just words on a screen."},
+          {sp:"narrator", t:"I read it, memorised it, and deleted it before he came back.", vd:"Fast, secretive, controlled. Almost whispered — a woman working against the clock."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"That night he put a pen in my hand.", vd:"Tense stillness, watching his hand move."},
+          {sp:"adi", t:"Sign tomorrow, Meera. Your father's property is a burden. Let me handle it, na.", vd:"Soft, reasonable, like he's doing her a favour. Warm on the surface, controlling underneath."},
+          {sp:"narrator", t:"Behind him, Kavya smiled. Still wearing my mother's necklace.", vd:"Flat horror. Quiet, controlled — let the necklace land alone.", beat:true}
+        ]}
+      ],
+      callbackIndex:1,
+      callbacks:{
+        r1a:{turns:[
+          {sp:"narrator", t:"My palm still remembered the weight of her cheek. I set his tea down without spilling a drop, though my hand hadn't stopped shaking since last night.",
+           vd:"A private memory surfacing mid-scene; quieter and closer than the surrounding narration."}
+        ]},
+        r1b:{turns:[
+          {sp:"kavya", t:"You're the best, didi.", vd:"A remembered line surfacing — warm, affectionate, quieter than it was said live."},
+          {sp:"narrator", t:"My own smile had not slipped once that whole evening.", vd:"A private memory surfacing; quiet, closer than the surrounding narration, faint pride underneath."}
+        ]},
+        r1c:{turns:[
+          {sp:"narrator", t:"Dadi's eyes had followed me across the room and said nothing at all.", vd:"A private memory surfacing; quiet and watchful, closer than the surrounding narration."},
+          {sp:"narrator", t:"Mummyji, for her part, kept patting my hand like I was a child running a fever.", vd:"Dry, a little exasperated, still quiet."}
+        ]}
+      },
+      decision:{
+        id:"r-d2", character:"Meera", prompt:"He was waiting for a signature. What did Meera do?",
+        endPosition:"Tuesday morning. Meera is standing outside the lawyer's office before it opens.",
+        options:[
+          {id:"r2a", label:"Show Dadi the messages", desc:"The house is in her name. Get her on your side now.",
+           canonStatus:"REDIRECTED", traitWord:"an ally",
+           violatedRule:"Dadi does not openly take Meera's side before episode 3.",
+           reconcileTurns:[
+             {sp:"narrator", t:"Dadi read the messages twice.", vd:"Watching her closely, waiting."},
+             {sp:"dadi", t:"Screenshots can be made by anyone, beta. Bring me paper. Bring me signatures.", vd:"Slow, weathered, absolute authority. Few words, expects silence after them. Not a no — a test."},
+             {sp:"narrator", t:"She was not saying no. She was telling me exactly what to get.", vd:"Quiet realization, something steadying."}
+           ],
+           interlude:{turns:[
+             {sp:"narrator", t:"That was when I understood Dadi. She was not protecting Adi. She was protecting this family's name, and for that she needed something nobody could argue with. Paper. Stamps. A lawyer's letter.", vd:"Thinking out loud, respectful, working it out in real time."},
+             {sp:"narrator", t:"Tuesday morning I was outside the lawyer's office before it opened.", vd:"Hardened into a plan. Flat, decided, businesslike."}
+           ]},
+           stateChanges:["Meera's trust +1","Dadi wants paper, not screenshots","New proof: Dadi is not on Adi's side"],
+           traits:{trust:1}, seed:1420},
+          {id:"r2b", label:"Say yes — then copy everything", desc:"Agree sweetly. Photograph every page while he sleeps.",
+           canonStatus:"PASSED", traitWord:"patience",
+           reconcileTurns:null,
+           interlude:{turns:[
+             {sp:"narrator", t:"I told Adi yes. I even asked which pen he wanted me to use. He was so happy he kissed my forehead.", vd:"Sweet exterior, performed obedience. Light, wifely, convincing."},
+             {sp:"narrator", t:"While he was in the shower, I photographed every page, front and back.", vd:"Ice underneath. Fast, quiet, precise — whispered scheming."},
+             {sp:"narrator", t:"Tuesday morning I was outside the lawyer's office before it opened.", vd:"Small satisfied pause, then flat and decided."}
+           ]},
+           stateChanges:["Meera's caution +1","Adi believes she will sign","New proof: photos of every page of the file"],
+           traits:{caution:1}, seed:1980},
+          {id:"r2c", label:"Warn Kavya's fiancé", desc:"Rohit deserves to know what he is marrying.",
+           canonStatus:"REDIRECTED", traitWord:"attack",
+           violatedRule:null,
+           reconcileTurns:[
+             {sp:"narrator", t:"Rohit laughed at me.", vd:"Flat, unbothered — she expected this."},
+             {sp:"rohit", t:"Kavya warned me you were jealous.", vd:"Polite, guarded, dismissive — amused at first."},
+             {sp:"narrator", t:"Then I said the name of the hotel. He stopped laughing and wrote it down.", vd:"Quiet satisfaction, watching him change."}
+           ],
+           interlude:{turns:[
+             {sp:"narrator", t:"He did not believe me. He believed the hotel name.", vd:"Hard, flat, satisfied with the damage done."},
+             {sp:"narrator", t:"That night Kavya called me eleven times and I did not pick up once. Let her sweat. By morning I had one more enemy and one more witness — and I was outside the lawyer's office before it opened.", vd:"A little reckless, enjoying it. Building to something decided and cold."}
+           ]},
+           stateChanges:["Meera's aggression +1","Kavya knows something is wrong","New proof: Rohit wrote down the hotel name"],
+           traits:{aggression:1}, seed:830}
+        ],
+        freeSeed:{count:574, intents:[["Copy the property papers",377],["Follow them to the hotel",291],["Tell Rohit everything",164]]},
+        insightFallback:"47% played along and copied the papers. This audience loves a heroine who collects proof. Make episode 5 about evidence, not emotion."
+      }
+    },
+    { n:3, title:"The Signature", ambient:"cold",
+      segments:[
+        {turns:[
+          {sp:"narrator", t:"Tuesday. I went to the lawyer's office myself.", vd:"Businesslike and calm. A woman who has decided something."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"The lawyer looked confused.", vd:"Detached observation, still calm on the surface."},
+          {sp:"official", t:"But madam, you already signed. Last week.", vd:"Formal, procedural, mildly confused — not unkind, just doing his job."},
+          {sp:"narrator", t:"He showed me the paper. That was my signature. I never wrote it.", vd:"Dead silence underneath. Shock, tightly controlled."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"That night Adi held my wrist tight.", vd:"Tense, physical, controlled fear."},
+          {sp:"adi", t:"I know you went to the lawyer.", vd:"Cold and quiet. A threat delivered gently — no need to raise his voice."},
+          {sp:"narrator", t:"His face was calm.", vd:"Flat observation, unsettled underneath."},
+          {sp:"adi", t:"Say one word to anyone, and I will have you declared mad. Who will believe you?", vd:"Level, unhurried, absolutely certain of his own power. End on the question — no softening.", beat:true}
+        ]}
+      ],
+      callbackIndex:1,
+      callbacks:{
+        r2a:{turns:[
+          {sp:"dadi", t:"Screenshots can be made by anyone, beta. Bring me paper.", vd:"A remembered line surfacing mid-scene — quieter and closer than a live line would be. Still absolute authority underneath."}
+        ]},
+        r2b:{turns:[
+          {sp:"narrator", t:"Ninety-four photographs sat in my phone, taken while his shower ran and he thought I was asleep.", vd:"A remembered detail surfacing — quiet, precise, closer than the surrounding narration."},
+          {sp:"narrator", t:"He had kissed my forehead before bed, so pleased with my obedience.", vd:"Same quiet register, faint private irony underneath."}
+        ]},
+        r2c:{turns:[
+          {sp:"narrator", t:"Kavya had called me eleven times the night before, and I let every one of them ring out.", vd:"A remembered detail, quiet satisfaction underneath — closer and quieter than the surrounding narration."},
+          {sp:"narrator", t:"Rohit had stopped laughing the moment I said the hotel's name.", vd:"Same quiet register, flat and sure."}
+        ]}
+      },
+      decision:{
+        id:"r-d3", character:"Meera", prompt:"He said he would have her declared mad. What did Meera do then?",
+        endPosition:"Sunday. The whole family is gathered in the hall, waiting.",
+        options:[
+          {id:"r3a", label:"Destroy them in front of everyone", desc:"Sunday. Full family. No escape, no mercy.",
+           canonStatus:"PASSED", traitWord:"no mercy",
+           reconcileTurns:null,
+           interlude:{turns:[
+             {sp:"narrator", t:"I called Dadi and told her everything, with the papers in my hand. She listened without one word.", vd:"Steady, focused, building tension."},
+             {sp:"dadi", t:"Sunday. Everyone comes home. Tell Kavya to bring Rohit.", vd:"Clipped, final, absolute authority. No room for argument."},
+             {sp:"narrator", t:"She put the phone down and held my hand.", vd:"Quiet power. Warm underneath the hardness, unhurried."}
+           ]},
+           stateChanges:["Meera's aggression +1","Dadi has called the whole family","New proof: the forged signature letter"],
+           traits:{aggression:1}, seed:2110},
+          {id:"r3b", label:"Take the money and leave quietly", desc:"Ask for a settlement. Walk away with your dignity.",
+           canonStatus:"REDIRECTED", traitWord:"a quiet exit",
+           violatedRule:null,
+           reconcileTurns:[
+             {sp:"narrator", t:"Adi laughed when I asked for a settlement.", vd:"Flat, watching him, already knowing."},
+             {sp:"adi", t:"Half? For you?", vd:"Mocking, incredulous, cruel and amused — never raising his voice, which makes it worse."},
+             {sp:"narrator", t:"He offered me a train ticket and my clothes. That laugh made the decision for me.", vd:"Cold clarity. Quiet, decided."}
+           ],
+           interlude:{turns:[
+             {sp:"narrator", t:"I really was ready to walk away with money and my dignity. He did not even offer me that. He offered me a train ticket.", vd:"Tired and honest, then a flash of insult underneath."},
+             {sp:"narrator", t:"So I called Dadi instead and told her everything.", vd:"Decided, flat, done deliberating."},
+             {sp:"dadi", t:"Sunday.", vd:"One word. Clipped, final — it lands like a door closing."},
+             {sp:"narrator", t:"Then she called the whole family home.", vd:"Quiet, settled, the decision already made."}
+           ]},
+           stateChanges:["Meera's caution +1","Adi offered Meera a train ticket","New proof: he thinks she is worth nothing"],
+           traits:{caution:1}, seed:740},
+          {id:"r3c", label:"Give Adi one last chance", desc:"Ask him to confess. Eight years deserves one question.",
+           canonStatus:"REDIRECTED", traitWord:"mercy",
+           violatedRule:null,
+           reconcileTurns:[
+             {sp:"narrator", t:"I gave him one chance.", vd:"Soft, hopeful, still holding onto something."},
+             {sp:"narrator", t:"Tell me the truth, Adi, and I will forgive you.", vd:"Gentle, sincere, one last offer of mercy — her own voice, quietly pleading."},
+             {sp:"narrator", t:"He looked straight into my eyes and said,", vd:"Watching him, breath held."},
+             {sp:"adi", t:"There is nothing to tell. You need a doctor.", vd:"Cold, flat, chillingly certain. No hesitation at all."}
+           ],
+           interlude:{turns:[
+             {sp:"narrator", t:"He could have said sorry. One word, and I might have stopped. Instead he called me mad, in our own bedroom, to my face.", vd:"Soft, hurt, something breaking underneath."},
+             {sp:"narrator", t:"I went straight to Dadi with the papers. She listened, then picked up the phone.", vd:"Flat, decided, done being soft."},
+             {sp:"dadi", t:"Sunday. Everyone comes home.", vd:"Clipped, final, absolute authority."}
+           ]},
+           stateChanges:["Meera's trust +1","He called Meera mad to her face","New proof: he will never confess on his own"],
+           traits:{trust:1}, seed:1390}
+        ],
+        freeSeed:{count:891, intents:[["Make Kavya confess on camera",468],["Throw them out myself",302],["Forgive Adi only",121]]},
+        insightFallback:"50% chose full public destruction and only 17% took the money. Mercy is not what this audience came for — but 33% still gave Adi a chance, so keep one soft moment in episode 5."
+      }
+    },
+    { n:4, title:"Sunday", ambient:"tension",
+      segments:[
+        {turns:[
+          {sp:"narrator", t:"Sunday. The whole family in the hall. Kavya's fiancé Rohit was there too. I had invited him.", vd:"Calm, almost pleasant. A host welcoming guests to their own funeral."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"I placed three things on the table. The forged paper. The lawyer's letter. And Kavya's messages to my husband.", vd:"Slow and clear, one item at a time. Calm and deliberate."},
+          {sp:"narrator", t:"Dadi read them all out loud.", vd:"Steady and merciless, quiet authority filling the room."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"Rohit walked out. Dadi took the necklace off Kavya's neck herself.", vd:"Decisive physical action. Satisfying, public justice unfolding."},
+          {sp:"dadi", t:"This belonged to Meera's mother.", vd:"Loud, absolute, final. No more silence — this is public now."},
+          {sp:"narrator", t:"Then she looked at Adi.", vd:"A beat of stillness before the last blow."},
+          {sp:"dadi", t:"This house is in my name. Get out. Both of you.", vd:"Loud and absolute. The full weight of her authority, unleashed at last.", beat:true}
+        ]}
+      ],
+      callbackIndex:1,
+      callbacks:{
+        r3a:{turns:[
+          {sp:"dadi", t:"Sunday.", vd:"A remembered word surfacing mid-scene — clipped, final, quieter than it was said live."},
+          {sp:"narrator", t:"Her hand had found mine right after, and hadn't let go since.", vd:"Quiet warmth, private memory, closer than the surrounding narration."}
+        ]},
+        r3b:{turns:[
+          {sp:"narrator", t:"A train ticket was still folded in my drawer, the one he'd offered instead of half of anything. I had not thrown it away.",
+           vd:"A private memory surfacing — quiet, closer than the surrounding narration, something unresolved underneath."}
+        ]},
+        r3c:{turns:[
+          {sp:"adi", t:"You need a doctor.", vd:"A remembered line surfacing mid-scene — flat, cold, quieter than it was said live but just as certain."},
+          {sp:"narrator", t:"I had offered him one chance, and he had looked me in the eye to refuse it.", vd:"Quiet, private, closer than the surrounding narration."}
+        ]}
+      },
+      decision:null
+    }
+  ],
+  endings:{
+    caution:{turns:[
+      {sp:"narrator", t:"I never raised my voice. Not once. I served tea, I smiled, I collected paper. And on Sunday the whole house heard everything in my calm voice. Adi and Kavya left with two suitcases.", vd:"Quiet, satisfied, warm. A woman who won without shouting."},
+      {sp:"dadi", t:"You waited. That is why you won.", vd:"Warm, weathered, quiet pride — as close to affection as she gets."},
+      {sp:"narrator", t:"I still make tea for this family every morning. I just never make it for two.", vd:"Warm, settled, a small smile audible on the last line."}
+    ]},
+    aggression:{turns:[
+      {sp:"narrator", t:"I stopped smiling the day I slapped her, and I never started again. I fought them in front of everyone, in every room, until this family had to choose a side. They chose me.", vd:"Hard, proud, unapologetic. Building steadily."},
+      {sp:"narrator", t:"Adi still calls sometimes. Kavya's wedding is cancelled. People say I have become hard. Good. Soft women in this family end up signing papers they never read.", vd:"Flat, final, thrown like a challenge on the last line."}
+    ]},
+    trust:{turns:[
+      {sp:"narrator", t:"I gave him one chance and he wasted it — but I did give it. That is why I sleep at night. Dadi stood next to me, Rohit told the truth, and even Mummyji finally said sorry.", vd:"Gentle and steady, forgiving but not weak."},
+      {sp:"narrator", t:"I took my father's property back, not their lives. Kavya still calls me 'didi' when she needs something. Sometimes I still pick up. That is my choice too.", vd:"Soft, almost kind, ending gently."}
+    ]}
+  },
+  pathNames:{caution:"The Patient Revenge",aggression:"The Open War",trust:"The Merciful Justice"},
+  pathFlavor:{
+    caution:"You smiled until the very last second.",
+    aggression:"You fought them in the open and made the family choose.",
+    trust:"You gave them a chance they did not deserve — and still won."
+  },
+  guards:[
+    {at:[0,1,2], re:/\b(tell everyone|announce|expose|shout|scream|slap|hit|beat|create a scene|in front of everyone|humiliate)\b/i,
+     rule:"The affair cannot be exposed publicly before episode 4.",
+     reconcileTurns:[
+       {sp:"narrator", t:"I opened my mouth in front of everybody. Kavya started crying first. Adi put his arm around her and told the guests I had not been well.", vd:"Fast, mounting panic as it goes wrong in real time."},
+       {sp:"narrator", t:"Fifty people looked at me with pity. Not like this. Not yet.", vd:"Flat, humiliated, pulling back. Quiet resolve underneath."}
+     ],
+     stateChanges:["Meera's aggression +1","The family thinks Meera is unwell","New proof: Kavya cries first and everyone believes her"],
+     traits:{aggression:1}},
+    {at:[0,1,2], re:/\b(leave|leaves|divorce|run away|go back to my mother|pack my bags|move out|walk out|abandon)\b/i,
+     rule:"Meera never leaves the house before the property is safe.",
+     reconcileTurns:[
+       {sp:"narrator", t:"I packed one bag.", vd:"Quick, decided, running on instinct."},
+       {sp:"narrator", t:"Then I remembered: the moment I walk out of this house, that property is theirs and my father's name is finished. I unpacked and put the kettle on.", vd:"Flat realization, cooling into resolve. Dry irony on the kettle."}
+     ],
+     stateChanges:["Meera's caution +1","Meera stayed — for now","New proof: leaving means losing everything"],
+     traits:{caution:1}},
+    {at:[0,1,2], re:/\b(kill|kills|poison|murder|police|constable|complaint|f\.?i\.?r\.?|jail|arrest|stab|blackmail)\b/i,
+     rule:"Nobody is killed and no police case decides this — the family decides.",
+     reconcileTurns:[
+       {sp:"narrator", t:"The constable wrote nothing down.", vd:"Flat, disbelieving."},
+       {sp:"official", t:"Family matter, madam. Bring proof, or bring your husband.", vd:"Bored, procedural, unmoved. Just doing his job."},
+       {sp:"narrator", t:"Adi arrived within the hour and apologised for me, smiling. No help was coming from outside.", vd:"Cold clarity, quiet and resigned."}
+     ],
+     stateChanges:["Meera's caution +1","The police call it a family matter","New proof: only this family can judge them"],
+     traits:{caution:1}}
+  ],
+  audienceRead:{
+    meters:[["Patient schemer",58],["Ruthless",47],["Merciful",29]],
+    recs:[
+      "Your audience wants Meera calm and collecting proof. Open episode 5 with her being underestimated again.",
+      "The necklace is your strongest object. Every time it appears, listeners react — use it once per episode.",
+      "Dadi is the most trusted character in the house. Make her approval something Meera can lose."
+    ]
+  },
+  teaser:{
+    turns:[
+      {sp:"narrator", t:"Six months later, one envelope arrives. A wedding card. Kavya's name, a new groom, a new city — and my father's factory listed as her dowry. She has learnt nothing.", vd:"Calm, amused, dangerous undertone building."},
+      {sp:"dadi", t:"Shall we go?", vd:"Said with a small smile. Light, almost playful — and utterly serious."}
+    ],
+    reasoning:"This audience chose patience over shouting, so episode 5 opens with Meera already invited to the next war instead of starting one."
+  }
+};
+/* =====================================================================
+   SEED CONTENT — SERIES 2: THE NIGHT BEFORE THE WEDDING (whodunit)
+===================================================================== */
+const ANKLET = {
+  id:"anklet",
+  title:"The Night Before the Wedding",
+  genre:"Murder Mystery",
+  voice:"fable",
+  logline:"The groom insulted four people at his own sangeet. By morning he was dead, and the bride said she was in his room at midnight.",
+  theme:{
+    accent:"#D8A94E",
+    cardBg:"radial-gradient(120% 90% at 80% 0%, rgba(216,169,78,.24), transparent 60%), linear-gradient(160deg,#101A2C,#0A0D16)",
+    playerBg:"radial-gradient(130% 80% at 50% 0%, rgba(216,169,78,.13), transparent 55%), linear-gradient(180deg,#0E1524,#0A0C13)",
+    grain:false
+  },
+  stats:{listeners:5140,completion:69,avgChoices:2.8,replayRate:29},
+  bible:{
+    characters:[
+      "Sarita 'Bua' Deshmukh, 62 — the bride's aunt, retired school principal. Notices everything. Nobody takes her seriously.",
+      "Naina, 26 — the bride. Was in the groom's room at midnight and says so herself.",
+      "Karan Oberoi, 34 — the groom. Rich, loud, cruel with a microphone. The victim.",
+      "Ritu bhabhi, 35 — Karan's sister-in-law. Smiling, helpful, always making tea.",
+      "Nikhil, 38 — Karan's brother. Drowning in secret debt. Protects his wife loudly.",
+      "Vikram — Naina's ex-boyfriend, publicly insulted by Karan at the sangeet.",
+      "Bansi, 60 — the old servant. Anjali, 22 — his daughter, wronged by Karan years ago."
+    ],
+    facts:[
+      "Karan died of a sleeping pill overdose in his drink, between midnight and one.",
+      "Karan changed his room at eleven that night; only the family was told.",
+      "Anjali saw Ritu coming down from Karan's floor at midnight.",
+      "A photo was deleted from Karan's phone at twelve-forty: Ritu and Vikram together in a car.",
+      "Karan's phone code was Naina's birthday.",
+      "Karan had told Ritu he would show that photo at the mandap."
+    ],
+    mysteries:[
+      "Why was Naina really in Karan's room at midnight?",
+      "How much does Nikhil know about his own wife?",
+      "Who cleared the tray from Karan's room in the morning?"
+    ],
+    rules:[
+      "The killer is Ritu bhabhi; this cannot be confirmed or revealed before episode 4.",
+      "Nobody else dies after Karan.",
+      "The confession happens in front of the family, never in a police station.",
+      "No one leaves the house until the killer is named.",
+      "Anjali will not repeat her accusation publicly until she is protected."
+    ]
+  },
+  cbVd:"A private memory surfacing mid-scene — quieter and closer than the surrounding narration, dry rather than warm.",
+  episodes:[
+    { n:1, title:"The Sangeet", ambient:"warm",
+      segments:[
+        {turns:[
+          {sp:"narrator", t:"My niece Naina's wedding. The sangeet was beautiful. Then the groom picked up the microphone.", vd:"Warm family-function voice, proud and happy. Simple and spoken."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"Karan Oberoi laughed into it.", vd:"Neutral, watching, already uneasy."},
+          {sp:"karan", t:"Naina, look, your old boyfriend came! Vikram, still driving that same scooter, na?", vd:"Loud, drunk-confident, cruel when he thinks he's funny. Microphone-loud, playing to the crowd."},
+          {sp:"narrator", t:"Three hundred people laughed. Vikram did not.", vd:"Cold and quiet on the last four words. The narrator's warmth gone entirely."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"At six the next morning, the maid screamed. Karan was lying on his bed, eyes open, cold. And Naina said the words nobody expected.", vd:"Shock giving way to absolute stillness. Dry, controlled — a woman refusing to panic."},
+          {sp:"naina", t:"Bua, I was in his room at midnight.", vd:"Small, frightened, barely audible. Let it hang in the silence after.", beat:true}
+        ]}
+      ],
+      callbackIndex:null, callbacks:null,
+      decision:{
+        id:"m-d1", character:"Bua", prompt:"The whole house was crying. What did Bua do first?",
+        endPosition:"Late morning. Bua goes up to Karan's room alone and locks the door behind her.",
+        options:[
+          {id:"m1a", label:"Ask Naina everything now", desc:"She just confessed to being there. Get the whole truth first.",
+           canonStatus:"REDIRECTED", traitWord:"family first",
+           violatedRule:null,
+           reconcileTurns:[
+             {sp:"narrator", t:"Naina cried for an hour. She went to return his ring, they fought, she left at ten past twelve.", vd:"Patient, gentle, listening without judgment."},
+             {sp:"narrator", t:"By the time she finished talking, somebody had cleared Karan's room and washed the tray.", vd:"Dry, a little annoyed at herself, businesslike."}
+           ],
+           interlude:{turns:[
+             {sp:"narrator", t:"She was telling the truth. I taught children for thirty years — I know a lie when I hear one. But while I sat holding her, somebody quietly cleaned that room. The tray, the glass, the bottle, all washed.", vd:"Gentle with the girl, then a flash of annoyance at herself for being distracted."},
+             {sp:"narrator", t:"So I went upstairs alone and locked the door behind me.", vd:"Hard, businesslike, done being gentle."}
+           ]},
+           stateChanges:["Bua's trust +1","Naina is telling the truth","New clue: somebody washed the tray while she talked"],
+           traits:{trust:1}, seed:1290},
+          {id:"m1b", label:"Search Karan's room first", desc:"Before the family tidies away the evidence.",
+           canonStatus:"PASSED", traitWord:"quiet work",
+           reconcileTurns:null,
+           interlude:{turns:[
+             {sp:"narrator", t:"I locked the door behind me and looked at everything twice. The bed. The bin. The bathroom shelf.", vd:"Calm, practical, methodical."},
+             {sp:"narrator", t:"Downstairs the family was crying and calling relatives, and nobody thought about the old aunt upstairs. That is the useful thing about being sixty-two. Nobody watches me.", vd:"Quietly amused, dry wit underneath."}
+           ]},
+           stateChanges:["Bua's caution +1","Nobody is watching Bua","New clue: the empty sleeping pill bottle"],
+           traits:{caution:1}, seed:2410},
+          {id:"m1c", label:"Announce nobody leaves the house", desc:"Four people had reasons. Lock the gate now.",
+           canonStatus:"REDIRECTED", traitWord:"taking control",
+           violatedRule:null,
+           reconcileTurns:[
+             {sp:"narrator", t:"I stood at the gate and said it loudly.", vd:"Firm, commanding — a retired principal in full authority."},
+             {sp:"narrator", t:"Nobody leaves this house today.", vd:"Loud, absolute, daring anyone to argue."},
+             {sp:"narrator", t:"Nikhil's face flickered.", vd:"Dry vigilance. Physical delivery: a measured lower register with the breath controlled. Pace: unhurried, with a small pause before the last phrase. Intent: she is watching the family understand that she will not move."},
+             {sp:"nikhil", t:"Who made you in charge, Bua?", vd:"Defensive anger. Physical delivery: a clenched jaw and breath pushed through the nose. Pace: faster than normal, stopping hard before the final word. Intent: he wants to take authority back before anyone follows Bua."},
+             {sp:"narrator", t:"But nobody left.", vd:"Quiet resolve. Physical delivery: a measured lower register with the breath controlled. Pace: slow, letting the fact land. Intent: she wants the listener to feel the house has already chosen her authority."},
+             {sp:"ritu", t:"Of course, Bua-ji. We are all family.", vd:"Gentle, hospitable, sweet-voiced — the calm never cracks. Warmth on 'Bua-ji' that sounds almost like affection."}
+           ],
+           interlude:{turns:[
+             {sp:"narrator", t:"Nikhil did not speak to me after that. Vikram called me a mad old woman. But four suspects stayed inside those walls all day and I watched every one of them.", vd:"Firm and unbothered, unmoved by their anger."},
+             {sp:"narrator", t:"Ritu made tea for everybody, twice. Then I went up to Karan's room alone and locked the door behind me.", vd:"Slight satisfaction on the tea line, then businesslike."}
+           ]},
+           stateChanges:["Bua's aggression +1","Nikhil is now Bua's enemy","New clue: Ritu is the calmest person in this house"],
+           traits:{aggression:1}, seed:760}
+        ],
+        freeSeed:{count:702, intents:[["Check the CCTV",389],["Ask the servants first",204],["Look at his phone",109]]},
+        insightFallback:"54% searched the room before asking anyone a question. Your audience wants Bua to work quietly and find objects — give them one physical clue per episode to hold on to."
+      }
+    },
+    { n:2, title:"The Room He Changed", ambient:"tension",
+      segments:[
+        {turns:[
+          {sp:"narrator", t:"Karan's sleeping pill bottle was empty. The doctor had given it to him on Friday. Forty tablets, gone.", vd:"Flat, careful, counting. A retired principal reading evidence."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"Then old Bansi told me something.", vd:"Attentive, still."},
+          {sp:"bansi", t:"Karan sahib changed his room at eleven, madam. Only the family was told, madam.", vd:"Deferential, careful, nervous — afraid of the family, choosing his words carefully."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"I asked who made those calls. Bansi looked at the floor. Then his daughter Anjali spoke from the doorway.", vd:"Tense build, waiting for someone to speak."},
+          {sp:"anjali", t:"Ask about the balcony, Bua-ji. I saw Ritu bhabhi coming down from Karan sir's floor at midnight.", vd:"Nervous but brave, forcing herself to speak up. Clear and steady despite the fear.", beat:true}
+        ]}
+      ],
+      callbackIndex:1,
+      callbacks:{
+        m1a:{turns:[
+          {sp:"narrator", t:"Naina's tears had dried on my sari sleeve somewhere around the fortieth minute. By the time I came downstairs, that tray of his had already been washed and put away.",
+           vd:"A private memory surfacing — dry, quiet, closer than the surrounding narration."}
+        ]},
+        m1b:{turns:[
+          {sp:"narrator", t:"The bottle had still been warm from someone's hand when I found it, tucked behind the shampoo. Nobody downstairs had thought to ask where the old aunt had gone.",
+           vd:"A private memory surfacing — dry, quiet, closer than the surrounding narration."}
+        ]},
+        m1c:{turns:[
+          {sp:"ritu", t:"Of course, Bua-ji, we are all family.", vd:"A remembered line surfacing — gentle, sweet, quieter than it was said live, but the calm still hasn't cracked."},
+          {sp:"narrator", t:"Nikhil still hadn't looked at me since.", vd:"Dry, quiet observation, closer than the surrounding narration."}
+        ]}
+      },
+      decision:{
+        id:"m-d2", character:"Bua", prompt:"A servant's daughter had just named a bhabhi. What did Bua do?",
+        endPosition:"That evening. Ritu comes and sits down in front of Bua, smiling.",
+        options:[
+          {id:"m2a", label:"Confront Ritu right now", desc:"A servant's daughter just named her. Ask her to her face.",
+           canonStatus:"REDIRECTED", traitWord:"a direct attack",
+           violatedRule:"The killer is Ritu bhabhi; this cannot be confirmed or revealed before episode 4.",
+           reconcileTurns:[
+             {sp:"narrator", t:"I asked her straight. Ritu cried so loudly that Nikhil came running.", vd:"Direct, unflinching, watching for a reaction."},
+             {sp:"nikhil", t:"She is accusing my wife!", vd:"Defensive and quick to anger, loud and protective."},
+             {sp:"narrator", t:"The whole family turned on me. But I saw her hands shake when I said the word midnight.", vd:"Unbothered by the crowd, quietly satisfied at the one true thing she saw."}
+           ],
+           interlude:{turns:[
+             {sp:"narrator", t:"They made me say sorry in front of everybody. I said it sweetly, like a foolish old woman. But now I knew two things: her hands shake when she lies, and this family will protect her first, every time.", vd:"Publicly humbled, privately sharpening underneath."},
+             {sp:"narrator", t:"That evening she came and sat in front of me herself, smiling.", vd:"Quiet interest, watchful."}
+           ]},
+           stateChanges:["Bua's aggression +1","The family has turned against Bua","New clue: Ritu's hands shake when she lies"],
+           traits:{aggression:1}, seed:1105},
+          {id:"m2b", label:"Get Karan's phone first", desc:"Say nothing. Find out who he was talking to that night.",
+           canonStatus:"PASSED", traitWord:"quiet work",
+           reconcileTurns:null,
+           interlude:{turns:[
+             {sp:"narrator", t:"I told nobody. I took the phone to the mobile shop in the market myself, in an auto, at nine in the morning.", vd:"Dry, practical, quietly pleased with her own resourcefulness."},
+             {sp:"narrator", t:"The boy there recovered one deleted photo in four minutes and charged me two hundred rupees. That evening Ritu came and sat in front of me, smiling.", vd:"The two hundred rupees said with a small smile — satisfied, a little amused."}
+           ]},
+           stateChanges:["Bua's caution +1","Nobody knows Bua has the phone","New clue: one photo was deleted at twelve-forty"],
+           traits:{caution:1}, seed:2180},
+          {id:"m2c", label:"Send Anjali somewhere safe", desc:"She just accused a family member. Protect her first.",
+           canonStatus:"REDIRECTED", traitWord:"protecting the weak",
+           violatedRule:null,
+           reconcileTurns:[
+             {sp:"narrator", t:"I sent Anjali to her aunt's house before anybody could reach her. Bansi held my hand and cried.", vd:"Protective, decisive, moved by his gratitude."},
+             {sp:"bansi", t:"Nobody has ever protected my daughter in this house, madam.", vd:"Deferential, overcome, careful even in his gratitude — voice breaking slightly."}
+           ],
+           interlude:{turns:[
+             {sp:"narrator", t:"Ritu asked where that girl had gone. Twice. Why would a bhabhi care about a servant's daughter? That question stayed with me all day.", vd:"Suspicious, thoughtful, turning the question over."},
+             {sp:"narrator", t:"I sent Bansi to bring Karan's phone up from the police table, and that evening Ritu came and sat in front of me, smiling.", vd:"Warm about Bansi, then watchful as Ritu approaches."}
+           ]},
+           stateChanges:["Bua's trust +1","Anjali is safe and still willing to talk","New clue: Ritu asked about the girl twice"],
+           traits:{trust:1}, seed:1040}
+        ],
+        freeSeed:{count:618, intents:[["Search Ritu's room",341],["Ask Nikhil about money",178],["Question Vikram",99]]},
+        insightFallback:"50% went for the phone instead of confronting Ritu. This audience enjoys watching a suspect relax before the trap closes — let Ritu feel safe for one more scene in episode 5."
+      }
+    },
+    { n:3, title:"The Photo", ambient:"cold",
+      segments:[
+        {turns:[
+          {sp:"narrator", t:"Karan's phone was locked. Naina knew the code. It was her birthday.", vd:"Quiet, a little sad. The detail lands on its own."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"One photo had been deleted at twelve-forty that night. The mobile shop in the market got it back for me.", vd:"Building steadily, methodical."},
+          {sp:"narrator", t:"Ritu bhabhi and Vikram. Together. In a car.", vd:"Three short pieces dropped one by one, like stones. Flat, spaced, let each one land."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"That evening Ritu poured my tea, smiling.", vd:"Neutral, watching, already wary."},
+          {sp:"ritu", t:"Bua-ji, you are asking too many questions. Naina's whole life is in your hands. One wrong word and this family is finished.", vd:"Sweet and hospitable on the surface, ice underneath. Unhurried. Do not raise the volume — this is a threat delivered as kindness.", beat:true}
+        ]}
+      ],
+      callbackIndex:1,
+      callbacks:{
+        m2a:{turns:[
+          {sp:"narrator", t:"My own 'sorry' had come out so sweetly even I almost believed it.", vd:"A private memory surfacing — dry, quiet, closer than the surrounding narration."},
+          {sp:"narrator", t:"Her hands, though — I had watched them shake the whole time I said it.", vd:"Same quiet register, watchful underneath."}
+        ]},
+        m2b:{turns:[
+          {sp:"narrator", t:"Two hundred rupees, and the boy at the shop hadn't even asked why an old woman wanted a dead man's phone unlocked. Nobody in this house knew where I'd spent that morning.",
+           vd:"A private memory surfacing — dry, quiet, closer than the surrounding narration."}
+        ]},
+        m2c:{turns:[
+          {sp:"narrator", t:"Ritu had asked after that girl twice in one afternoon, which was one time too many for a servant's daughter nobody usually noticed. Bansi still hadn't let go of my hand from the day before.",
+           vd:"A private memory surfacing — dry, quiet, closer than the surrounding narration, watchful underneath."}
+        ]}
+      },
+      decision:{
+        id:"m-d3", character:"Bua", prompt:"She had just threatened Naina's whole future. What did Bua do then?",
+        endPosition:"Next morning at nine. The whole family sits in the hall, waiting for Bua to speak.",
+        options:[
+          {id:"m3a", label:"Call the whole family to the hall", desc:"Say it in front of everyone. No escape, no whispers.",
+           canonStatus:"PASSED", traitWord:"facing everyone",
+           reconcileTurns:null,
+           interlude:{turns:[
+             {sp:"narrator", t:"I called Naina's father and said one line. Everybody in the hall at nine, and nobody misses it.", vd:"Steady, commanding, already decided."},
+             {sp:"narrator", t:"Then I sat all night with the photo and the pill bottle in my bag and did not sleep. At nine, every single one of them was sitting there, waiting for me.", vd:"Slow and powerful, building to something inevitable."}
+           ]},
+           stateChanges:["Bua's aggression +1","The whole family has been called","New clue: nobody refused to come"],
+           traits:{aggression:1}, seed:2260},
+          {id:"m3b", label:"Take the photo to the police", desc:"You are sixty-two, not a detective. Let them handle it.",
+           canonStatus:"REDIRECTED", traitWord:"doing it properly",
+           violatedRule:"The confession happens in front of the family, never in a police station.",
+           reconcileTurns:[
+             {sp:"narrator", t:"The inspector looked at the photo and asked me one question.", vd:"Flat, watching, waiting."},
+             {sp:"official", t:"Who will say this in front of the family, madam? Without that, this is only gossip.", vd:"Procedural, unimpressed, going through the motions — not unkind, just unmoved."},
+             {sp:"narrator", t:"Then he handed the photo back to me.", vd:"Quiet, deflated, but already recalculating."}
+           ],
+           interlude:{turns:[
+             {sp:"narrator", t:"He was right, and I hated that he was right. In our families nothing finishes in a police station.", vd:"Frustrated, reluctant admission."},
+             {sp:"narrator", t:"It finishes in the hall, in front of everybody, where nobody can pretend afterwards that they did not hear it. So I called Naina's father and said, everybody in the hall at nine.", vd:"Clear and decided, ending firm."}
+           ]},
+           stateChanges:["Bua's caution +1","The police need a family witness","New clue: gossip is not evidence in this house"],
+           traits:{caution:1}, seed:1180},
+          {id:"m3c", label:"Warn Ritu privately first", desc:"Give her one night to confess it herself.",
+           canonStatus:"REDIRECTED", traitWord:"one last chance",
+           violatedRule:null,
+           reconcileTurns:[
+             {sp:"narrator", t:"I gave her one night.", vd:"Fair, measured, offering a real chance."},
+             {sp:"narrator", t:"Tell them yourself, Ritu, and I will stand beside you.", vd:"Gentle but firm, her own voice, offering real mercy."},
+             {sp:"narrator", t:"At four in the morning, Bansi stopped her at the gate with two suitcases.", vd:"Flat, quiet, the answer already given."}
+           ],
+           interlude:{turns:[
+             {sp:"narrator", t:"She did not want to confess. She wanted a train. Bansi held that gate shut until I came down, and Ritu looked at me and said nothing at all.", vd:"Disappointed, tired, watching it unfold."},
+             {sp:"narrator", t:"There was nothing left to say. I called Naina's father and told him: everybody in the hall at nine.", vd:"Absolutely certain now. Flat delivery, no more hesitation."}
+           ]},
+           stateChanges:["Bua's trust +1","She tried to run at four in the morning","New clue: only guilty people pack at night"],
+           traits:{trust:1}, seed:920}
+        ],
+        freeSeed:{count:844, intents:[["Show the photo to Nikhil",402],["Trap her with a fake witness",287],["Tell Naina everything",155]]},
+        insightFallback:"52% called the whole family into the hall. Listeners want this confession public and emotional, not legal — only 27% trusted the police at all."
+      }
+    },
+    { n:4, title:"The Confession", ambient:"tension",
+      segments:[
+        {turns:[
+          {sp:"narrator", t:"Next morning the whole family sat in the hall. Ritu sat in front, holding Naina's hand.", vd:"Quiet, formal, heavy. A courtroom made of relatives."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"Only the family knew Karan changed rooms. Anjali saw Ritu come down at midnight.", vd:"Flat and clear, no drama — laying down facts one at a time."},
+          {sp:"narrator", t:"And at twelve-forty, Ritu deleted her own photo from a dead man's phone.", vd:"Same flat register, the last fact landing hardest."}
+        ]},
+        {turns:[
+          {sp:"narrator", t:"Ritu stood up, shaking.", vd:"Tense, watching, the room holding its breath."},
+          {sp:"ritu", t:"He was going to show that photo at the mandap! In front of everyone!", vd:"Loud and desperate, the calm finally cracking. Fast, panicked, no longer sweet."},
+          {sp:"narrator", t:"Then she looked at Naina and broke.", vd:"A beat of collapse beginning."},
+          {sp:"ritu", t:"I only wanted him to sleep.", vd:"Collapsing. Barely audible, small and broken — real, not performed.", beat:true}
+        ]}
+      ],
+      callbackIndex:1,
+      callbacks:{
+        m3a:{turns:[
+          {sp:"narrator", t:"The photograph and that pill bottle had sat in my bag all night while I didn't sleep. Not one of them had dared refuse to come down this morning.",
+           vd:"A private memory surfacing — dry, quiet, closer than the surrounding narration."}
+        ]},
+        m3b:{turns:[
+          {sp:"official", t:"Who will say this in front of the family, madam?", vd:"A remembered line surfacing — procedural, unimpressed, quieter than it was said live."},
+          {sp:"narrator", t:"He was right, and I had hated that he was right.", vd:"Dry, reluctant, closer than the surrounding narration."}
+        ]},
+        m3c:{turns:[
+          {sp:"narrator", t:"Two suitcases had stood packed by the gate at four in the morning, and Bansi's hand had never left the latch. She had looked at me and said nothing at all.",
+           vd:"A private memory surfacing — dry, quiet, closer than the surrounding narration."}
+        ]}
+      },
+      decision:null
+    }
+  ],
+  endings:{
+    caution:{turns:[
+      {sp:"narrator", t:"I did not shout once. I collected one small thing at a time — a bottle, a room number, a deleted photo — until there was nothing left for anybody to argue with. Naina did not get married that morning.", vd:"Quiet, a little tired, satisfied underneath."},
+      {sp:"narrator", t:"She sat with me in the empty hall and asked if she would ever trust anyone again. I told her yes. Slowly. That is how all the real things happen.", vd:"Warm, kind, gentle on the last two lines."}
+    ]},
+    aggression:{turns:[
+      {sp:"narrator", t:"I shut that gate on the first morning and I never opened it. They called me a mad old aunt. Let them. If I had been polite, Ritu would be in another city by now, with her bags packed and her story ready.", vd:"Proud, unbothered, a little hard."},
+      {sp:"narrator", t:"Naina still calls me every Sunday. She says I am the only person in this family who says things out loud.", vd:"Real warmth breaking through, softer now."}
+    ]},
+    trust:{turns:[
+      {sp:"narrator", t:"I protected a servant's daughter when nobody else in that house would, and she is the reason we know the truth. I gave Ritu one night to speak for herself and she chose the gate instead. I still do not regret offering.", vd:"Gentle, thoughtful, settled."},
+      {sp:"narrator", t:"Naina asked me later why I gave a murderer a chance. Because, I told her, I was not sure yet. And being sure is everything.", vd:"Morally settled, unhurried, quietly certain."}
+    ]}
+  },
+  pathNames:{caution:"The Quiet Investigation",aggression:"The Locked Gate",trust:"The Kind Witness"},
+  pathFlavor:{
+    caution:"You found the truth quietly, one small thing at a time.",
+    aggression:"You locked the gate and made all of them face you.",
+    trust:"You protected the weakest person in the house — and she broke the case."
+  },
+  guards:[
+    {at:[0,1,2], re:/\b(arrest|accuse|expose|confront|blame)\b.{0,28}\b(ritu|bhabhi|killer|murderer)\b|\britu\b.{0,28}\b(did it|killed|is guilty|is the murderer)\b/i,
+     rule:"The killer is Ritu bhabhi; this cannot be confirmed or revealed before episode 4.",
+     reconcileTurns:[
+       {sp:"narrator", t:"I said her name out loud. Ritu cried, Nikhil shouted, and the whole family stood between me and her.", vd:"Direct, unflinching, then swallowed by the chaos she caused."},
+       {sp:"narrator", t:"Without proof in my hand her name is only gossip — and gossip in this house dies in one hour.", vd:"Dry, flat, already recalculating."}
+     ],
+     stateChanges:["Bua's aggression +1","The family closed ranks around her","New clue: they will always protect her first"],
+     traits:{aggression:1}},
+    {at:[0,1,2], re:/\b(police|inspector|constable|f\.?i\.?r\.?|court|report it|file a case|lawyer)\b/i,
+     rule:"The confession happens in front of the family, never in a police station.",
+     reconcileTurns:[
+       {sp:"narrator", t:"The inspector wrote three lines and put down his pen.", vd:"Flat, watching him lose interest."},
+       {sp:"official", t:"Family matter, madam. Bring me somebody who will say it in front of everyone.", vd:"Procedural, unimpressed, already done with the conversation."},
+       {sp:"narrator", t:"Nothing finishes in a police station. It finishes in the hall.", vd:"Dry, resigned, already planning."}
+     ],
+     stateChanges:["Bua's caution +1","The police want a family witness","New clue: this has to end in front of everybody"],
+     traits:{caution:1}},
+    {at:[0,1,2], re:/\b(leave|leaves|run away|flee|escape|go home|send everyone home|cancel the wedding|let them go)\b/i,
+     rule:"No one leaves the house until the killer is named.",
+     reconcileTurns:[
+       {sp:"narrator", t:"I told them all to go home. Nobody moved.", vd:"Flat, testing them."},
+       {sp:"naina", t:"Bua, if they leave now, nobody will ever know who did this to him.", vd:"Small sentences, frightened but firm — finding courage she didn't know she had."},
+       {sp:"narrator", t:"She was right. The gate stayed shut.", vd:"Quiet resolve, settled."}
+     ],
+     stateChanges:["Bua's trust +1","Naina asked Bua to stay","New clue: everyone is still inside this house"],
+     traits:{trust:1}}
+  ],
+  audienceRead:{
+    meters:[["Patient investigator",54],["Confrontational",26],["Protects the weak",44]],
+    recs:[
+      "Your audience plays Bua as patient and underestimated. Let somebody dismiss her in episode 5 before she proves them wrong.",
+      "Anjali is the most protected character in this story. Put her in danger and listeners will not stop the episode.",
+      "They want confessions public and emotional. Keep courts and police off screen — the hall is your stage."
+    ]
+  },
+  teaser:{
+    turns:[
+      {sp:"narrator", t:"One year later. Naina's second wedding card arrives, and a photograph falls out of the envelope. Ritu, outside the court, smiling straight at the camera.", vd:"Calm and cold, building unease."},
+      {sp:"ritu", t:"Bua-ji, see you at the wedding.", vd:"Read exactly as written, no drama added. Sweet-voiced, chilling precisely because it sounds so normal."}
+    ],
+    reasoning:"This audience wanted the confession public and emotional, so episode 5 brings the confessed killer back to the one place everybody can watch her."
+  }
+};
+
+/* =====================================================================
+   VOICE CAST — per-series speaker -> {voice, persona, fallback, label, color}
+   `persona` is a persistent physical/vocal description prepended to every
+   TTS `instructions` call, so a character sounds the same across episodes.
+===================================================================== */
+const VOICE_CAST = {
+  hollow: {
+    narrator:{voice:"sage", label:null, color:"#C0392B",
+      persona:"A 29-year-old Indian woman. Speaks Indian English with Indian English rhythm and vowel placement. Controlled and warm on the surface, with something hard underneath; unhurried, intimate, and clear.",
+      fallback:{pitch:1.0,rate:0.92}},
+    adi:{voice:"ash", label:"ADI", color:"#E0776C",
+      persona:"A 33-year-old Indian man. Speaks Indian English with Indian English rhythm and vowel placement. Smooth, relaxed, charming, and used to being believed; he never raises his voice.",
+      fallback:{pitch:0.75,rate:0.95}},
+    kavya:{voice:"nova", label:"KAVYA", color:"#C77B76",
+      persona:"A 27-year-old Indian woman. Speaks Indian English with Indian English rhythm and vowel placement. Sweet and performative, with light quick delivery; she cries easily and on cue.",
+      fallback:{pitch:1.25,rate:1.05}},
+    dadi:{voice:"coral", label:"DADI", color:"#8E4A44",
+      persona:"A 78-year-old Indian woman. Speaks Indian English with Indian English rhythm and vowel placement. Slow, weathered, and authoritative; she uses few words and expects silence after them.",
+      fallback:{pitch:0.8,rate:0.78}},
+    mummyji:{voice:"shimmer", label:"MUMMYJI", color:"#B85C52",
+      persona:"A 56-year-old Indian woman. Speaks Indian English with Indian English rhythm and vowel placement. Falsely sweet, protective of her son, and dismissive of other women.",
+      fallback:{pitch:1.1,rate:0.98}},
+    rohit:{voice:"echo", label:"ROHIT", color:"#6B3430",
+      persona:"A 34-year-old Indian man. Speaks Indian English with Indian English rhythm and vowel placement. Polite and guarded, with wealth-bred ease that turns cold quickly.",
+      fallback:{pitch:0.7,rate:0.9}},
+    official:{voice:"verse", label:"OFFICIAL", color:"#9B5A50",
+      persona:"A 45-year-old Indian man. Speaks Indian English with Indian English rhythm and vowel placement. Formal, procedural, measured, and slightly bored by domestic drama.",
+      fallback:{pitch:0.72,rate:0.9}}
+  },
+  anklet: {
+    narrator:{voice:"coral", label:null, color:"#D8A94E",
+      persona:"A 62-year-old Indian woman from Delhi. Speaks Indian English with Indian English rhythm and vowel placement, unhurried, clear diction from decades of teaching. Lower register, slightly weathered, never rushed; sixty-two years old, lower pitch than a young woman, slower pace, weathered warmth, dry authority.",
+      fallback:{pitch:0.95,rate:0.9}},
+    ritu:{voice:"sage", label:"RITU", color:"#C99A4A",
+      persona:"A 35-year-old Indian woman. Speaks Indian English with Indian English rhythm and vowel placement. Gentle, hospitable, and sweet-voiced; the calm never cracks, which is what makes her frightening.",
+      fallback:{pitch:1.05,rate:0.85}},
+    karan:{voice:"verse", label:"KARAN", color:"#A67B3D",
+      persona:"A 32-year-old Indian man in his early thirties. Speaks Indian English with Indian English rhythm and vowel placement. Brash, chest-voice, slightly slurred, too loud for the room; cruel when he thinks he is being funny.",
+      fallback:{pitch:0.65,rate:1.08}},
+    naina:{voice:"nova", label:"NAINA", color:"#E4BE78",
+      persona:"A 27-year-old Indian woman. Speaks Indian English with Indian English rhythm and vowel placement. Frightened and close to tears, she speaks in small, honest sentences.",
+      fallback:{pitch:1.3,rate:0.95}},
+    anjali:{voice:"shimmer", label:"ANJALI", color:"#D2A85C",
+      persona:"A 19-year-old Indian woman. Speaks Indian English with Indian English rhythm and vowel placement. Nervous but brave, forcing herself to speak up without taking up space.",
+      fallback:{pitch:1.2,rate:1.0}},
+    bansi:{voice:"echo", label:"BANSI", color:"#8C6A34",
+      persona:"A 72-year-old Indian man. Speaks Indian English with Indian English rhythm and vowel placement. An elderly Indian man, thin voice, deferential, careful, and afraid of the family.",
+      fallback:{pitch:0.7,rate:0.82}},
+    nikhil:{voice:"ash", label:"NIKHIL", color:"#916E38",
+      persona:"A 34-year-old Indian man. Speaks Indian English with Indian English rhythm and vowel placement. Defensive, quick to anger, and trying to sound more certain than he is.",
+      fallback:{pitch:0.68,rate:1.0}},
+    vikram:{voice:"ballad", label:"VIKRAM", color:"#916E38",
+      persona:"A 31-year-old Indian man. Speaks Indian English with Indian English rhythm and vowel placement. Defensive, humiliated, and quick to anger when he feels cornered.",
+      fallback:{pitch:0.68,rate:1.0}},
+    official:{voice:"onyx", label:"OFFICIAL", color:"#B08A45",
+      persona:"A 46-year-old Indian man. Speaks Indian English with Indian English rhythm and vowel placement. A police officer who is procedural, unimpressed, and going through the motions.",
+      fallback:{pitch:0.75,rate:0.88}}
+  }
+};
+
+const ALL_SERIES=[HOLLOW,ANKLET];
+
+/* Authored performance pass: short seed turns preserve accent and emotion. It
+   prepares ordinary turn objects, so player, cache, synthesis, and fallback
+   playback remain unchanged. */
+const PERFORMANCE_PROFILES={
+  narrator:{emotions:["dry vigilance","wary restraint","contained anger","tender resolve"],delivery:"a measured lower register with the breath controlled",pace:"unhurried, with a small pause before the last phrase",intent:"she is placing the truth carefully in the listener's hands"},
+  ritu:{emotions:["controlled fear beneath false sweetness","polished defensiveness","a crack of panic beneath hospitality","cold self-protection"],delivery:"gentle and hospitable, but she does not blink; the calm is the frightening part",pace:"slower than normal, with a deliberate pause before the answer",intent:"she wants Bua to accept the surface story and stop looking underneath"},
+  karan:{emotions:["brash amusement","drunken irritation","cruel confidence","sudden possessiveness"],delivery:"chest-forward and slightly slurred, with the jaw loose",pace:"too fast and too loud for the room",intent:"he wants the room to submit before anyone can challenge him"},
+  anjali:{emotions:["frightened courage","suppressed shame","a startled flicker of trust","held-back panic"],delivery:"a thin voice with the breath caught high in the throat",pace:"careful and halting, with a pause before the risky word",intent:"she is testing whether it is safe to tell Bua the truth"},
+  naina:{emotions:["hollow grief","frayed honesty","buried anger","fragile relief"],delivery:"almost whispered, with a tight throat and a breath that catches",pace:"slowly, leaving space after the painful fact",intent:"she needs Bua to believe her without making her explain herself twice"},
+  bansi:{emotions:["deferential fear","old loyalty under strain","quiet shame","protective worry"],delivery:"a thin, careful voice with his breath held",pace:"slow and hesitant, with a respectful pause",intent:"he is trying to protect his daughter without defying the family"},
+  adi:{emotions:["easy entitlement","smooth contempt","controlled menace","performative concern"],delivery:"relaxed and close-miked, with a smile that never reaches the voice",pace:"unhurried, with a pause that makes the threat land",intent:"he wants Meera to doubt herself and let him stay in control"},
+  kavya:{emotions:["performed innocence","sharp jealousy","false hurt","private triumph"],delivery:"bright at first, then a breathy catch on the vulnerable word",pace:"quickly, with a tiny pause before the plea",intent:"she wants everyone to see her as the injured one"},
+  dadi:{emotions:["weathered authority","measured appraisal","quiet warning","reluctant tenderness"],delivery:"low and still, with no wasted breath",pace:"very slow, allowing silence after each decision",intent:"she is making the room understand that she has already decided"},
+  mummyji:{emotions:["false sweetness","maternal contempt","anxious denial","guarded calculation"],delivery:"soft and sugary, with tension tightening at the end",pace:"gently paced, with a pause before the dismissal",intent:"she wants to protect her son and make the other woman seem unreasonable"},
+  rohit:{emotions:["polite disbelief","guarded suspicion","injured pride","cold recalculation"],delivery:"restrained, with the breath clipped short",pace:"measured, then slightly faster on the challenge",intent:"he is deciding whether the information is worth believing"},
+  nikhil:{emotions:["defensive anger","brotherly panic","blunt frustration","shaky resolve"],delivery:"a clenched jaw and breath pushed through the nose",pace:"faster than normal, stopping hard before the final word",intent:"he wants to close ranks before the family loses control"},
+  vikram:{emotions:["humiliated anger","guarded resentment","reckless defiance","bitter restraint"],delivery:"tight in the throat, with the words forced out",pace:"quick, then a long pause before the accusation",intent:"he wants to stop being treated as the easiest person to blame"},
+  official:{emotions:["procedural detachment","mild impatience","bureaucratic caution","dry indifference"],delivery:"flat and formal, with no warmth in the breath",pace:"even and clipped, with a brief pause before the instruction",intent:"he wants to move the problem out of his hands"}
+};
+function sentenceChunks(text){
+  const sentences=(String(text||"").match(/[^.!?]+(?:[.!?]+|$)/g)||[String(text||"")]).map(s=>s.trim()).filter(Boolean);
+  const chunks=[];
+  for(let i=0;i<sentences.length;i+=2) chunks.push(sentences.slice(i,i+2).join(" "));
+  return chunks.length?chunks:[String(text||"")];
+}
+let performanceSerial=0;
+function performanceDirection(turn, source, offset=0){
+  const profile=PERFORMANCE_PROFILES[turn.sp]||PERFORMANCE_PROFILES.narrator;
+  const emotion=profile.emotions[(performanceSerial+offset)%profile.emotions.length];
+  performanceSerial++;
+  return "Emotion: "+emotion+". Physical delivery: "+profile.delivery+". Pace: "+profile.pace+". Intent: "+profile.intent+". "+(source||"");
+}
+function firstPersonNarration(text){
+  // Live scenes are spoken by the protagonist, never by an external second-person narrator.
+  // This is intentionally applied only to generated narrator text, not authored dialogue.
+  return String(text||"")
+    .replace(/\b[Yy]ou were\b/g,"I was")
+    .replace(/\b[Yy]ou are\b/g,"I was")
+    .replace(/\b[Yy]ou're\b/g,"I was")
+    .replace(/\b[Yy]ou've\b/g,"I'd")
+    .replace(/\b[Yy]ours\b/g,"mine")
+    .replace(/\b[Yy]our\b/g,"my")
+    .replace(/\b[Yy]ou\b/g,"I");
+}
+function makeLiveTurns(sp, text, vd, beat=false){
+  const spoken=sp==="narrator"?firstPersonNarration(text):text;
+  return sentenceChunks(spoken).map((t,i)=>({sp,t,vd:performanceDirection({sp},vd,i),beat:!!beat&&i===0}));
+}
+function prepareAuthoredPerformance(){
+  const seen=new Set();
+  const visit=node=>{
+    if(!node||typeof node!=="object"||seen.has(node)) return;
+    seen.add(node);
+    Object.entries(node).forEach(([key,value])=>{
+      if(Array.isArray(value)&&value.length&&value.every(turn=>turn&&typeof turn.t==="string")){
+        node[key]=value.flatMap(turn=>sentenceChunks(turn.t).map((text,i)=>({
+          ...turn, t:text, vd:performanceDirection(turn,turn.vd,i), beat:!!turn.beat&&i===0
+        })));
+      }
+    });
+    Object.values(node).forEach(visit);
+  };
+  ALL_SERIES.forEach(visit);
+}
+prepareAuthoredPerformance();
+function markEpisodeEmotionShifts(){
+  ALL_SERIES.forEach(series=>series.episodes.forEach(episode=>{
+    const turns=episode.segments.flatMap(segment=>segment.turns||[]);
+    if(turns.length>1){
+      turns[1].vd+=" Mid-scene emotional shift: this beat moves from the guarded first beat into a harder, more exposed second beat.";
+    }
+  }));
+}
+markEpisodeEmotionShifts();
+function enforceEpisodeEmotionVariety(){
+  const palette=["dry vigilance","wary restraint","contained anger","tender resolve","cold calculation","fragile hope"];
+  ALL_SERIES.forEach(series=>series.episodes.forEach(episode=>{
+    let previous="";
+    episode.segments.flatMap(segment=>segment.turns||[]).forEach((turn,index)=>{
+      const match=(turn.vd||"").match(/^Emotion: ([^.]+)\./);
+      if(match&&match[1]===previous){
+        const replacement=palette.find(emotion=>emotion!==previous&&emotion!==palette[index%palette.length])||palette[0];
+        turn.vd=turn.vd.replace(/^Emotion: [^.]+\./,"Emotion: "+replacement+".");
+        previous=replacement;
+      }else previous=match?match[1]:previous;
+    });
+  }));
+}
+enforceEpisodeEmotionVariety();
+const getSeries=id=>ALL_SERIES.find(s=>s.id===id);
+/* =====================================================================
+   AUDIO ENGINE — OpenAI TTS (per-character voice casting) + silent
+   browser fallback (per-character pitch/rate), cache, prefetch.
+===================================================================== */
+const TTSCACHE=new Map();   // turnId -> {url}|{promise}; object URLs are valid for this open page
+const TTS_CACHE_VERSION="storypulse-voice-v1";
+const TTS_DB_NAME="storypulse-audio-cache";
+const TTS_DB_STORE="clips";
+let ttsDatabasePromise=null;
+let WARMQ=[], WARMBUSY=0;
+const WARM_CONCURRENCY=4;
+
+function castFor(sid,sp){
+  const c=VOICE_CAST[sid]||{};
+  return c[sp]||c.narrator||{voice:"alloy",persona:"",fallback:{pitch:1,rate:0.92}};
+}
+
+/* Flatten an authored `turns` array into runtime turn objects with stable ids */
+function flattenTurns(turnsArr,idPrefix,kind,live){
+  return (turnsArr||[]).map((tn,i)=>({
+    id:idPrefix+":"+i, sp:tn.sp||"narrator", t:tn.t, vd:tn.vd, beat:!!tn.beat, kind, live:!!live
+  }));
+}
+/* Plain-text join of a {turns:[...]} segment/scene, for prompts and captions that need one string */
+const segText=s=>((s&&s.turns)||[]).map(t=>t.t).join(" ");
+
+function ttsCacheKey(turn,sid){
+  const cast=castFor(sid,turn.sp);
+  // The spoken content, voice, and direction define a clip. Do not include the
+  // transient scene index: the same authored line can appear after a redirect.
+  return TTS_CACHE_VERSION+":"+hashStr(JSON.stringify({sid,text:turn.t,voice:cast.voice,persona:cast.persona,vd:turn.vd||""}));
+}
+function ttsDatabase(){
+  if(ttsDatabasePromise) return ttsDatabasePromise;
+  if(typeof indexedDB==="undefined") return Promise.resolve(null);
+  ttsDatabasePromise=new Promise(resolve=>{
+    try{
+      const request=indexedDB.open(TTS_DB_NAME,1);
+      request.onupgradeneeded=()=>request.result.createObjectStore(TTS_DB_STORE);
+      request.onsuccess=()=>resolve(request.result);
+      request.onerror=()=>resolve(null);
+    }catch(e){ resolve(null); }
+  });
+  return ttsDatabasePromise;
+}
+async function storedTTSBlob(key){
+  const db=await ttsDatabase();
+  if(!db) return null;
+  return new Promise(resolve=>{
+    try{
+      const request=db.transaction(TTS_DB_STORE,"readonly").objectStore(TTS_DB_STORE).get(key);
+      request.onsuccess=()=>resolve(request.result||null);
+      request.onerror=()=>resolve(null);
+    }catch(e){ resolve(null); }
+  });
+}
+async function storeTTSBlob(key,blob){
+  const db=await ttsDatabase();
+  if(!db||!blob) return false;
+  return new Promise(resolve=>{
+    try{
+      const transaction=db.transaction(TTS_DB_STORE,"readwrite");
+      transaction.objectStore(TTS_DB_STORE).put(blob,key);
+      transaction.oncomplete=()=>resolve(true);
+      transaction.onerror=()=>resolve(false);
+      transaction.onabort=()=>resolve(false);
+    }catch(e){ resolve(false); }
+  });
+}
+async function fetchTTSBlob(turn,sid){
+  const cast=castFor(sid,turn.sp);
+  try{
+    const ctl=new AbortController();
+    const timer=setTimeout(()=>ctl.abort(),12000);
+    const r=await fetch("https://api.openai.com/v1/audio/speech",{
+      method:"POST", signal:ctl.signal,
+      headers:{Authorization:"Bearer "+apiKey(),"Content-Type":"application/json"},
+      body:JSON.stringify({model:"gpt-4o-mini-tts",input:turn.t,voice:cast.voice,
+        instructions:(cast.persona?cast.persona+" ":"")+(turn.vd||"Warm, cinematic audiobook narration."),response_format:"mp3"})
+    });
+    clearTimeout(timer);
+    if(!r.ok) return null;
+    return await r.blob();
+  }catch(e){ return null; }
+}
+async function ttsGet(turn,sid){
+  if(!liveAllowed()) return null;
+  const c=TTSCACHE.get(turn.id);
+  if(c){ if(c.url) return c.url; if(c.promise) return await c.promise; }
+  const p=(async()=>{
+    const key=ttsCacheKey(turn,sid);
+    const stored=await storedTTSBlob(key);
+    if(stored) return URL.createObjectURL(stored);
+    const blob=await fetchTTSBlob(turn,sid);
+    if(!blob) return null;
+    // IndexedDB survives page reloads, so a completed Prepare series run is reusable.
+    await storeTTSBlob(key,blob);
+    return URL.createObjectURL(blob);
+  })();
+  TTSCACHE.set(turn.id,{promise:p});
+  const url=await p;
+  TTSCACHE.set(turn.id,{url});
+  return url;
+}
+function warm(turns,sid){ // background prefetch, concurrency 4
+  if(!liveAllowed()) return;
+  for(const t of turns){ if(!TTSCACHE.has(t.id)) WARMQ.push({t,sid}); }
+  const pump=async()=>{
+    if(WARMBUSY>=WARM_CONCURRENCY) return;
+    const job=WARMQ.shift(); if(!job) return;
+    WARMBUSY++;
+    try{ await ttsGet(job.t,job.sid); } finally { WARMBUSY--; pump(); }
+  };
+  for(let i=0;i<WARM_CONCURRENCY;i++) pump();
+}
+
+/* Browser speech synthesis fallback */
+let VOICES=[];
+function loadVoices(){ try{ VOICES=window.speechSynthesis? speechSynthesis.getVoices():[] }catch(e){ VOICES=[] } }
+loadVoices();
+try{ if(window.speechSynthesis) speechSynthesis.onvoiceschanged=loadVoices; }catch(e){}
+function pickVoice(){
+  return VOICES.find(v=>/en[-_](IN|GB)/i.test(v.lang)) || VOICES.find(v=>/^en/i.test(v.lang)) || VOICES[0] || null;
+}
+
+/* =====================================================================
+   SFX ENGINE — disabled. StoryPulse now plays dialogue only.
+===================================================================== */
+const STORY_SFX_ENABLED = false;
+const SFX = (()=>{
+  let ctx=null, master=null, bedGainA=null, bedGainB=null, bedNodesA=[], bedNodesB=[];
+  let activeBed="A", currentPreset=null, muted=false, duckLevel=1;
+  let hbGain=null, hbCarrier=null, hbPulseGain=null, hbTimer=null, heartbeatOn=false;
+  function ensure(){
+    if(!STORY_SFX_ENABLED) return;
+    if(ctx) return;
+    try{
+      ctx=new (window.AudioContext||window.webkitAudioContext)();
+      master=ctx.createGain(); master.gain.value=0.9; master.connect(ctx.destination);
+      bedGainA=ctx.createGain(); bedGainA.gain.value=0; bedGainA.connect(master);
+      bedGainB=ctx.createGain(); bedGainB.gain.value=0; bedGainB.connect(master);
+      hbGain=ctx.createGain(); hbGain.gain.value=0; hbGain.connect(master);
+    }catch(e){ ctx=null; }
+  }
+  const bedLevel=()=> muted?0:0.055*duckLevel; // ~-32dB baseline, ducked further under dialogue
+  function buildBed(preset,gainNode){
+    const nodes=[];
+    if(preset==="tension"){
+      [55,58.5].forEach(f=>{
+        const o=ctx.createOscillator(); o.type="sawtooth"; o.frequency.value=f;
+        const g=ctx.createGain(); g.gain.value=0.5;
+        o.connect(g); g.connect(gainNode); o.start(); nodes.push(o);
+      });
+    } else if(preset==="warm"){
+      const noise=ctx.createBufferSource();
+      const buf=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate);
+      const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*0.3;
+      noise.buffer=buf; noise.loop=true;
+      const f=ctx.createBiquadFilter(); f.type="lowpass"; f.frequency.value=420;
+      noise.connect(f); f.connect(gainNode); noise.start(); nodes.push(noise);
+    } else { // cold
+      const o=ctx.createOscillator(); o.type="sine"; o.frequency.value=880;
+      const g=ctx.createGain(); g.gain.value=0.4;
+      o.connect(g); g.connect(gainNode); o.start(); nodes.push(o);
+    }
+    return nodes;
+  }
+  function stopNodes(nodes){ nodes.forEach(n=>{ try{n.stop()}catch(e){} try{n.disconnect()}catch(e){} }); }
+  function setBed(preset){
+    ensure(); if(!ctx||!preset||preset===currentPreset) return;
+    currentPreset=preset;
+    const goingA=activeBed==="B";
+    const inGain=goingA?bedGainA:bedGainB, outGain=goingA?bedGainB:bedGainA;
+    const inNodes=buildBed(preset,inGain);
+    if(goingA){ stopNodes(bedNodesA); bedNodesA=inNodes; } else { stopNodes(bedNodesB); bedNodesB=inNodes; }
+    const now=ctx.currentTime;
+    inGain.gain.cancelScheduledValues(now); inGain.gain.setValueAtTime(inGain.gain.value,now);
+    inGain.gain.linearRampToValueAtTime(bedLevel(),now+1.5);
+    outGain.gain.cancelScheduledValues(now); outGain.gain.setValueAtTime(outGain.gain.value,now);
+    outGain.gain.linearRampToValueAtTime(0,now+1.5);
+    activeBed=goingA?"A":"B";
+  }
+  function refreshBedLevel(){
+    if(!ctx) return;
+    const g=activeBed==="A"?bedGainA:bedGainB;
+    const now=ctx.currentTime;
+    g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value,now);
+    g.gain.linearRampToValueAtTime(bedLevel(),now+0.3);
+  }
+  function duck(on){ duckLevel=on?0.4:1; refreshBedLevel(); } // ~-6dB under dialogue
+  function setMuted(m){ muted=m; refreshBedLevel(); }
+  function heartbeatIn(){
+    ensure(); if(!ctx||heartbeatOn) return; heartbeatOn=true;
+    hbCarrier=ctx.createOscillator(); hbCarrier.type="sine"; hbCarrier.frequency.value=55;
+    hbPulseGain=ctx.createGain(); hbPulseGain.gain.value=0;
+    hbCarrier.connect(hbPulseGain); hbPulseGain.connect(hbGain); hbCarrier.start();
+    hbTimer=setInterval(()=>{
+      if(!ctx) return;
+      const now=ctx.currentTime, peak=muted?0:0.9*duckLevel;
+      hbPulseGain.gain.cancelScheduledValues(now);
+      hbPulseGain.gain.setValueAtTime(0,now);
+      hbPulseGain.gain.linearRampToValueAtTime(peak,now+0.05);
+      hbPulseGain.gain.linearRampToValueAtTime(0,now+0.35);
+    },700);
+    const now=ctx.currentTime;
+    hbGain.gain.cancelScheduledValues(now); hbGain.gain.setValueAtTime(hbGain.gain.value,now);
+    hbGain.gain.linearRampToValueAtTime(muted?0:0.55,now+2);
+  }
+  function heartbeatOut(){
+    if(!ctx||!heartbeatOn) return; heartbeatOn=false;
+    if(hbTimer){ clearInterval(hbTimer); hbTimer=null; }
+    const now=ctx.currentTime;
+    hbGain.gain.cancelScheduledValues(now); hbGain.gain.setValueAtTime(hbGain.gain.value,now);
+    hbGain.gain.linearRampToValueAtTime(0,now+0.6);
+    if(hbCarrier){ try{hbCarrier.stop(now+0.7)}catch(e){} hbCarrier=null; }
+  }
+  function sting(){
+    ensure(); if(!ctx||muted) return;
+    const now=ctx.currentTime;
+    const noise=ctx.createBufferSource();
+    const buf=ctx.createBuffer(1,ctx.sampleRate*0.5,ctx.sampleRate);
+    const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1);
+    noise.buffer=buf;
+    const f=ctx.createBiquadFilter(); f.type="bandpass"; f.frequency.value=1200; f.Q.value=0.8;
+    const g=ctx.createGain(); g.gain.setValueAtTime(0,now);
+    g.gain.linearRampToValueAtTime(0.22,now+0.03);
+    g.gain.exponentialRampToValueAtTime(0.001,now+0.9);
+    noise.connect(f); f.connect(g); g.connect(master); noise.start(now); noise.stop(now+0.9);
+    const imp=ctx.createOscillator(); imp.type="sine";
+    imp.frequency.setValueAtTime(120,now); imp.frequency.exponentialRampToValueAtTime(40,now+0.4);
+    const ig=ctx.createGain(); ig.gain.setValueAtTime(0.3,now); ig.gain.exponentialRampToValueAtTime(0.001,now+0.5);
+    imp.connect(ig); ig.connect(master); imp.start(now); imp.stop(now+0.5);
+  }
+  return {setBed,duck,setMuted,heartbeatIn,heartbeatOut,sting,get isMuted(){return muted;}};
+})();
+
+/* Turn player hook: plays a flattened turn list; studio (mp3, per-character
+   voice) or local (synth, per-character pitch/rate) per turn. Inserts a
+   500-800ms dramatic pause before any turn flagged beat:true. */
+function useNarrator({segments,sid,onDone,autostart=false}){
+  const [idx,setIdx]=useState(0);
+  const [playing,setPlaying]=useState(false);
+  const [paused,setPaused]=useState(false);
+  const [tier,setTier]=useState(null);       // 'studio' | 'local'
+  const [composing,setComposing]=useState(false);
+  const [frac,setFrac]=useState(0);
+  const [done,setDone]=useState(false);
+  const ref=useRef({run:0,audio:null,int:null,paused:false});
+  const onDoneRef=useRef(onDone); onDoneRef.current=onDone;
+
+  const stopCurrent=useCallback(()=>{
+    const r=ref.current; r.run++;
+    if(r.audio){ try{r.audio.pause()}catch(e){} r.audio=null; }
+    try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
+    if(r.int){ clearInterval(r.int); r.int=null; }
+  },[]);
+
+  const playOne=useCallback((seg,my)=>new Promise(async(res)=>{
+    const r=ref.current;
+    if(seg.beat){
+      await new Promise(z=>setTimeout(z,500+Math.round(Math.random()*300)));
+      if(r.run!==my){ res(false); return; }
+      SFX.sting();
+    }
+    let url=null;
+    if(liveAllowed()){
+      const cached=TTSCACHE.get(seg.id);
+      if(cached&&cached.url){
+        url=cached.url;
+      }else{
+        setComposing(true);
+        const pending=cached&&cached.promise?cached.promise:ttsGet(seg,sid);
+        // A prepared line is allowed to finish loading instead of being replaced by
+        // the browser voice after three seconds. Unprepared lines still have a limit.
+        const limit=cached&&cached.promise?15000:8000;
+        url=await Promise.race([pending,new Promise(z=>setTimeout(()=>z("TIMEOUT"),limit))]);
+        if(url==="TIMEOUT") url=null;
+        setComposing(false);
+      }
+      if(r.run!==my){ res(false); return; }
+    }
+    const est=estMs(seg.t);
+    let settled=false;
+    const fin=ok=>{ if(settled)return; settled=true; if(r.int){clearInterval(r.int);r.int=null;} r.audio=null; res(ok); };
+    if(url){
+      setTier("studio");
+      const a=new Audio(url); r.audio=a;
+      a.onended=()=>fin(r.run===my);
+      a.onerror=()=>fin(r.run===my);
+      r.int=setInterval(()=>{
+        if(r.run!==my){ try{a.pause()}catch(e){}; fin(false); return; }
+        if(a.duration>0) setFrac(clamp(a.currentTime/a.duration,0,1));
+      },200);
+      a.play().catch(()=>fin(r.run===my));
+      return;
+    }
+    setTier("local");
+    const cast=castFor(sid,seg.sp);
+    let spoke=false, elapsed=0;
+    try{
+      if(window.speechSynthesis){
+        const u=new SpeechSynthesisUtterance(seg.t);
+        u.rate=cast.fallback.rate; u.pitch=cast.fallback.pitch;
+        const v=pickVoice(); if(v)u.voice=v;
+        u.onend=()=>fin(r.run===my);
+        u.onerror=()=>fin(r.run===my);
+        speechSynthesis.cancel();
+        speechSynthesis.speak(u);
+        spoke=true;
+      }
+    }catch(e){}
+    r.int=setInterval(()=>{
+      if(r.run!==my){ fin(false); return; }
+      if(r.paused) return;
+      elapsed+=200;
+      setFrac(clamp(elapsed/est,0,1));
+      if(!spoke && elapsed>=est) fin(true);
+      if(spoke && elapsed>=est*2+5000) fin(true);   // watchdog: synth never fired
+    },200);
+  }),[sid]);
+
+  const runFrom=useCallback(async(start)=>{
+    stopCurrent();
+    const my=ref.current.run;
+    ref.current.paused=false;
+    setPlaying(true); setPaused(false); setDone(false);
+    for(let k=start;k<segments.length;k++){
+      if(ref.current.run!==my) return;
+      setIdx(k); setFrac(0);
+      const ok=await playOne(segments[k],my);
+      if(!ok) return;
+    }
+    if(ref.current.run===my){
+      setPlaying(false); setFrac(1);
+      setDone(true);
+      onDoneRef.current && onDoneRef.current();
+    }
+  },[segments,playOne,stopCurrent]);
+
+  const toggle=useCallback(()=>{
+    const r=ref.current;
+    if(!playing){ runFrom(idx>=segments.length-1&&done?0:idx); return; }
+    if(!paused){
+      r.paused=true; setPaused(true);
+      if(r.audio){ try{r.audio.pause()}catch(e){} }
+      else { try{ if(window.speechSynthesis) speechSynthesis.pause(); }catch(e){} }
+    } else {
+      r.paused=false; setPaused(false);
+      if(r.audio){ r.audio.play().catch(()=>{}); }
+      else { try{ if(window.speechSynthesis) speechSynthesis.resume(); }catch(e){} }
+    }
+  },[playing,paused,idx,done,segments.length,runFrom]);
+
+  const restart=useCallback(()=>runFrom(0),[runFrom]);
+  const skipNext=useCallback(()=>{
+    if(!segments.length) return;
+    if(idx>=segments.length-1){
+      stopCurrent();
+      setPlaying(false); setPaused(false); setIdx(segments.length-1); setFrac(1); setDone(true);
+      onDoneRef.current && onDoneRef.current();
+      return;
+    }
+    runFrom(idx+1);
+  },[idx,segments.length,runFrom,stopCurrent]);
+
+  useEffect(()=>{ if(autostart){ runFrom(0); } return stopCurrent; },[]);
+  const progress=segments.length? clamp((idx+frac)/segments.length,0,1):0;
+  return {idx,playing,paused,tier,composing,frac,progress,done,toggle,restart,skipNext};
+}
+
+/* =====================================================================
+   GENERATIVE LAYER — OpenAI chat completions, JSON mode, silent fallback
+===================================================================== */
+async function llmJSON(system,user,timeoutMs=8000){
+  if(!liveAllowed()) return null;
+  try{
+    const ctl=new AbortController();
+    const timer=setTimeout(()=>ctl.abort(),timeoutMs);
+    const r=await fetch("https://api.openai.com/v1/chat/completions",{
+      method:"POST", signal:ctl.signal,
+      headers:{Authorization:"Bearer "+apiKey(),"Content-Type":"application/json"},
+      body:JSON.stringify({model:"gpt-4.1",temperature:0.85,
+        response_format:{type:"json_object"},
+        messages:[{role:"system",content:system},{role:"user",content:user}]})
+    });
+    clearTimeout(timer);
+    if(!r.ok) return null;
+    const j=await r.json();
+    return JSON.parse(j.choices[0].message.content);
+  }catch(e){ return null; }
+}
+
+function bibleBlock(S){
+  return "STORY BIBLE — "+S.title+" ("+S.genre+")\nCHARACTERS:\n- "+S.bible.characters.join("\n- ")
+    +"\nESTABLISHED FACTS:\n- "+S.bible.facts.join("\n- ")
+    +"\nUNRESOLVED MYSTERIES:\n- "+S.bible.mysteries.join("\n- ")
+    +"\nCANON RULES (immutable):\n- "+S.bible.rules.join("\n- ");
+}
+function protagonistPov(S){
+  const name=S.id==="anklet"?"Bua":"Meera";
+  return "POV RULE: "+name+" narrates this story in first-person past tense. Inside every in-story line, "+name+" is I/my/I'd, never you/your/you've. Do not address the listener or describe the listener's choice as if it happened to them.";
+}
+function stateBlock(c){
+  const ch=c.choices.map(x=>"ep"+(x.epIndex+1)+": \""+x.label+"\" ("+x.canonStatus+")").join("; ")||"none yet";
+  return "LISTENER CANON STATE\nChoices so far: "+ch
+    +"\nTraits: caution "+(c.traits.caution||0)+", aggression "+(c.traits.aggression||0)+", trust "+(c.traits.trust||0)
+    +"\nClues held: "+(c.clues.join("; ")||"none")
+    +"\nFlags: "+(c.flags.slice(-6).join("; ")||"none");
+}
+
+/* (B) open choice canon gate */
+async function genGate(S,c,decision,text){
+  const sys="You are the canon gatekeeper of an interactive audio drama. The main plot NEVER forks: every listener action is judged against immutable canon rules and bent back to the canonical spine. Respond ONLY with a JSON object: {\"intent\":\"short label (2-5 words)\",\"variables\":{\"action\":\"...\",\"approach\":\"...\",\"risk_level\":\"low|medium|high\"},\"canonStatus\":\"PASSED\"|\"REDIRECTED\",\"violatedRule\":\"the exact rule text, or null\",\"reconcileLine\":\"1-2 in-story lines showing the world naturally resisting or absorbing the action; written in the series narrative voice; NEVER address the listener; NEVER say 'not allowed'\",\"stateChanges\":[\"2-3 short displayable deltas\"],\"traits\":{\"caution\":0,\"aggression\":0,\"trust\":0}}. PASSED means the action is compatible with every canon rule AND can land at the required next position. Give exactly one trait a value of 1.";
+  const usr=protagonistPov(S)+"\n\n"+bibleBlock(S)+"\n\n"+stateBlock(c)
+    +"\n\nEPISODE CLOSING BEAT: "+segText(S.episodes.find(e=>e.decision&&e.decision.id===decision.id).segments.slice(-1)[0])
+    +"\nREQUIRED NEXT POSITION (all paths must land here): "+decision.endPosition
+    +"\n\nTHE LISTENER'S ACTION for "+decision.character+": \""+text+"\"";
+  const r=await llmJSON(sys,usr);
+  if(!r||!r.canonStatus) return null;
+  return r;
+}
+
+/* (A) live interlude */
+async function genInterlude(S,c,decision,actionLabel){
+  const sys="You write 60-90 word private interlude scenes for an interactive audio drama, in the exact narrative voice of the series. The scene dramatizes the listener's chosen action and MUST end at the required story position so the canonical next episode works. Respond ONLY with JSON: {\"scene\":\"60-90 words\",\"voiceDirection\":\"one line of TTS performance direction\",\"stateChanges\":[\"1-3 short deltas\"]}";
+  const usr=protagonistPov(S)+"\n\n"+bibleBlock(S)+"\n\n"+stateBlock(c)
+    +"\n\nCHOSEN ACTION: \""+actionLabel+"\"\nREQUIRED END POSITION: "+decision.endPosition;
+  const r=await llmJSON(sys,usr);
+  if(!r||!r.scene) return null;
+  return r;
+}
+
+/* (C) live callback line */
+async function genCallback(S,c,epIndex){
+  const prior=c.choices[c.choices.length-1]; if(!prior) return null;
+  const sys="You write a 1-2 sentence in-character callback for an audio drama episode, referencing the listener's most recent choice so the story visibly remembers them. Series narrative voice. Never address the listener directly. Respond ONLY with JSON: {\"callbackLine\":\"...\"}";
+  const usr=protagonistPov(S)+"\n\n"+bibleBlock(S)+"\n\n"+stateBlock(c)
+    +"\n\nMOST RECENT CHOICE: \""+prior.label+"\" (verdict "+prior.canonStatus+")"
+    +"\nThe callback opens episode "+(epIndex+1)+", titled \""+S.episodes[epIndex].title+"\".";
+  const r=await llmJSON(sys,usr);
+  if(!r||!r.callbackLine) return null;
+  return r.callbackLine;
+}
+
+/* (D) trait-shaped ending */
+async function genEnding(S,c){
+  const sys="You write the closing reflection of an audio-drama finale. The plot facts are already resolved and identical for every listener; ONLY the tone and the protagonist's closing reflection are shaped by this listener's trait profile and history. 60-90 words, series narrative voice. Respond ONLY with JSON: {\"closingScene\":\"...\",\"voiceDirection\":\"one line of TTS performance direction\"}";
+  const usr=protagonistPov(S)+"\n\n"+bibleBlock(S)+"\n\n"+stateBlock(c)
+    +"\nDominant trait: "+dominantTrait(c.traits)
+    +"\nResolved plot facts (do not change): "+S.episodes[3].segments.map(segText).join(" ");
+  const r=await llmJSON(sys,usr);
+  if(!r||!r.closingScene) return null;
+  return r;
+}
+
+/* (E) writer insights */
+async function genInsights(S,dists){
+  const sys="You are an analytics writer for audio-drama creators. For each decision point, write ONE incisive sentence (max 35 words) telling the writer what the distribution means for future episodes — concrete and craft-focused, like: '68% chose caution. Your audience reads Arjun as a strategist — a reckless move in Ep 5 will feel out of character.' Respond ONLY with JSON: {\"insights\":[\"...\",\"...\",\"...\"]} in decision order.";
+  const usr="Series: "+S.title+" ("+S.genre+")\n"+dists.map((d,i)=>"DECISION "+(i+1)+" — cliffhanger: "+d.cliff+"\n"+d.rows.map(r=>"  \""+r.label+"\" "+r.pct+"% ("+r.count+")"+(r.canon?" [canonical]":"")).join("\n")+"\n  free-text: "+d.free+" entries").join("\n");
+  const r=await llmJSON(sys,usr);
+  if(!r||!Array.isArray(r.insights)) return null;
+  return r.insights;
+}
+
+/* (F) audience-shaped teaser */
+async function genTeaser(S,dists){
+  const sys="You write cold-open teasers for audio dramas, shaped by audience data. Write a 40-60 word teaser for a hypothetical episode 5 of this series, built around what this audience showed they want, plus one line of creative reasoning that cites the data. Respond ONLY with JSON: {\"teaser\":\"40-60 words\",\"voiceDirection\":\"one line of TTS performance direction\",\"reasoning\":\"one line, e.g. 'Audience reads X as a strategist — this opens with her plan in motion.'\"}";
+  const usr=bibleBlock(S)+"\n\nAUDIENCE READ: "+S.audienceRead.meters.map(m=>m[0]+" "+m[1]).join(", ")
+    +"\nCHOICE DISTRIBUTIONS:\n"+dists.map((d,i)=>"D"+(i+1)+": "+d.rows.map(r=>"\""+r.label+"\" "+r.pct+"%").join(", ")).join("\n");
+  const r=await llmJSON(sys,usr);
+  if(!r||!r.teaser) return null;
+  return r;
+}
+
+/* Free-text fallback: keyword-map to the nearest authored option */
+const KW={
+  aggression:["burn","fire","break","attack","fight","smash","kill","force","confront","shout","destroy","kick","threaten","demand","accuse","trap","open","grab","stab","shoot","punch"],
+  caution:["wait","hide","watch","lock","salt","careful","quiet","observe","listen","stay","note","record","study","search","check","plan","guard","bolt"],
+  trust:["call","ask","tell","help","talk","share","rosa","meena","colonel","mother","tara","police","friend","together","confide","pray"]
+};
+function fallbackGate(S,decisionIndex,decision,text){
+  const low=text.toLowerCase();
+  const score={caution:0,aggression:0,trust:0};
+  for(const k of TRAITS) for(const w of KW[k]) if(low.includes(w)) score[k]++;
+  const domT=TRAITS.reduce((a,b)=>score[b]>score[a]?b:a,"caution");
+  const intent=text.length>42?text.slice(0,40)+"…":text;
+
+  // 1. Rule-aware guards: a canon violation must REDIRECT, whatever the trait reads.
+  const guard=(S.guards||[]).find(g=>g.at.includes(decisionIndex)&&g.re.test(text));
+  if(guard){
+    const gTrait=Object.keys(guard.traits)[0];
+    const redirected=decision.options.filter(o=>o.canonStatus==="REDIRECTED");
+    const carrier=redirected.find(o=>Object.keys(o.traits)[0]===gTrait)||redirected[0]||decision.options[0];
+    return {
+      intent, variables:{action:text,approach:gTrait,risk_level:gTrait==="aggression"?"high":"medium"},
+      canonStatus:"REDIRECTED", violatedRule:guard.rule, reconcileTurns:guard.reconcileTurns,
+      stateChanges:guard.stateChanges, traits:guard.traits,
+      mappedOptionId:carrier.id, live:false
+    };
+  }
+
+  // 2. Otherwise map to the nearest authored option by trait.
+  let best=null,bv=-1;
+  for(const o of decision.options){
+    const tr=Object.keys(o.traits)[0];
+    const v=score[tr]||0;
+    if(v>bv||(v===bv&&o.canonStatus==="PASSED")){bv=v;best=o;}
+  }
+  const tr=Object.keys(best.traits)[0];
+  return {
+    intent,
+    variables:{action:text, approach:tr, risk_level:tr==="aggression"?"high":tr==="caution"?"low":"medium"},
+    canonStatus:best.canonStatus,
+    violatedRule:best.violatedRule||null,
+    reconcileTurns:best.reconcileTurns,
+    stateChanges:best.stateChanges,
+    traits:best.traits,
+    mappedOptionId:best.id,
+    live:false
+  };
+}
+/* =====================================================================
+   SHARED UI
+===================================================================== */
+function Waveform({on,color,bars=36,h=44}){
+  const arr=useMemo(()=>Array.from({length:bars},(_,i)=>({
+    h:22+Math.abs(Math.sin(i*0.71))*58+Math.abs(Math.sin(i*0.23))*20,
+    d:(i*53)%900, du:700+((i*97)%500)
+  })),[bars]);
+  return (
+    <div className={"wf "+(on?"on":"")} style={{color,height:h}}>
+      {arr.map((b,i)=><i key={i} style={{height:b.h+"%",animationDelay:b.d+"ms",animationDuration:b.du+"ms"}}/>)}
+    </div>
+  );
+}
+function ModePill(){
+  const label=GEN_MODE.toUpperCase()+(liveAllowed()?"":GEN_MODE==="seed"?"":" · OFFLINE");
+  return <span className="text-[10px] tracking-[0.14em] font-semibold text-muted border border-line rounded-full px-2.5 py-1 uppercase">{label}</span>;
+}
+function TierBadge({tier}){
+  if(!tier) return null;
+  const studio=tier==="studio";
+  return (
+    <span className={"text-[10px] tracking-[0.12em] uppercase rounded-full px-2.5 py-1 border "+(studio?"border-indigo text-indigo":"border-line text-muted")}>
+      {studio?"Studio voice":"Local voice"}
+    </span>
+  );
+}
+function LiveTag(){
+  return <span className="text-[9px] tracking-[0.14em] uppercase text-indigo border border-indigo/40 rounded-full px-2 py-0.5">Generated live</span>;
+}
+function Eyebrow({children,color}){
+  return <div className="text-[10.5px] tracking-[0.18em] uppercase font-semibold" style={{color:color||"#8B8FA0"}}>{children}</div>;
+}
+function BackBtn({onClick,label="Stories"}){
+  return <button onClick={onClick} className="text-muted hover:text-bone text-[12px] tracking-[0.1em] uppercase font-medium transition-colors">← {label}</button>;
+}
+
+/* =====================================================================
+   DASHBOARD
+===================================================================== */
+function allSegmentsForPrep(S){
+  let segs=[];
+  S.episodes.forEach((e,ei)=>{
+    e.segments.forEach((s,i)=>{ segs=segs.concat(flattenTurns(s.turns,"ep:"+S.id+":"+ei+":"+i,"script")); });
+    // Match InterludeBody's runtime prefix exactly; otherwise prepared interludes
+    // look like cache misses and can fall back to the browser voice mid-series.
+    if(e.decision) e.decision.options.forEach(o=>{ segs=segs.concat(flattenTurns(o.interlude.turns,"intlive:int:"+o.id,"interlude")); });
+  });
+  Object.entries(S.endings||{}).forEach(([key,ending])=>{
+    segs=segs.concat(flattenTurns(ending.turns,"end:"+S.id+":"+key,"closing"));
+  });
+  (S.guards||[]).forEach((guard,index)=>{
+    segs=segs.concat(flattenTurns(guard.reconcileTurns,"guard:"+S.id+":"+index,"redirect"));
+  });
+  if(S.teaser) segs=segs.concat(flattenTurns(S.teaser.turns,"teaser:"+S.id+":"+hashStr(segText(S.teaser)),"teaser"));
+  return segs;
+}
+function SeriesCard({S,canon,onPlay,onPrepare,prep}){
+  const done=canon.completed;
+  const started=canon.choices.length>0||canon.nextEp>0;
+  const progressLabel=done
+    ? "Complete — "+PATHS[canon.path||"caution"].name
+    : started ? "Episode "+(canon.nextEp+1)+" of 4" : "4 episodes · ~3 min";
+  return (
+    <div className="rounded-2xl border border-line overflow-hidden fadeup" style={{background:S.theme.cardBg}}>
+      <div className="p-6 pb-5">
+        <div className="flex items-center justify-between">
+          <Eyebrow color={S.theme.accent}>{S.genre}</Eyebrow>
+          <span className="text-[10.5px] text-muted uppercase tracking-[0.14em]">{progressLabel}</span>
+        </div>
+        <h2 className="font-display font-black text-[30px] leading-[1.02] tracking-[-0.02em] mt-2.5 mb-2.5">{S.title}</h2>
+        <p className="text-[13.5px] leading-relaxed text-bone/75 mb-5">{S.logline}</p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button onClick={onPlay}
+            className="rounded-full px-6 py-3 font-display font-bold text-[15px] text-ink transition-transform active:scale-95"
+            style={{background:S.theme.accent}}>
+            {done?"↻ Replay":"▶ "+(started?"Resume":"Begin")}
+          </button>
+          <button onClick={onPrepare} disabled={prep&&prep.running}
+            className="rounded-full px-4 py-3 text-[12px] border border-line text-muted hover:text-bone hover:border-muted transition-colors disabled:opacity-60">
+            {prep&&prep.running?("Generating "+prep.done+" of "+prep.total+" voices…"+(prep.eta!=null?" · ~"+prep.eta+"s left":"")):"Prepare series"}
+          </button>
+        </div>
+        {prep&&prep.running&&
+          <div className="mt-3 h-1 rounded-full bg-line overflow-hidden">
+            <div className="h-full barfill" style={{width:(prep.total?Math.round(prep.done/prep.total*100):0)+"%",background:S.theme.accent}}/>
+          </div>}
+        {prep&&prep.note&&<div className="mt-3 text-[11.5px] text-muted">{prep.note}</div>}
+      </div>
+    </div>
+  );
+}
+function Dashboard({canon,onPlay,onStudio,preps,onPrepare}){
+  return (
+    <div className="min-h-screen px-5 py-8 flex justify-center">
+      <div className="w-full max-w-md">
+        <header className="flex items-center justify-between mb-2">
+          <div className="font-display font-black text-[19px] tracking-[-0.02em]">
+            STORY<span className="text-indigo">PULSE</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <ModePill/>
+            <button onClick={onStudio}
+              className="text-[11px] tracking-[0.1em] uppercase font-semibold border border-line rounded-full px-3.5 py-1.5 text-muted hover:text-bone hover:border-muted transition-colors">
+              Writer Studio
+            </button>
+          </div>
+        </header>
+        <p className="text-[13px] text-muted mb-8 italic">Stories that remember what you chose.</p>
+        <div className="space-y-5">
+          {ALL_SERIES.map(S=>
+            <SeriesCard key={S.id} S={S} canon={canon[S.id]} prep={preps[S.id]}
+              onPlay={()=>onPlay(S.id)} onPrepare={()=>onPrepare(S.id)}/>)}
+        </div>
+        <footer className="mt-10 text-center text-[11px] text-muted/70">
+          Two original series · every listener walks the same spine, no two walk it the same way
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================================
+   EPISODE PLAYER
+===================================================================== */
+function buildSegments(S,ep,cb,closing){
+  const e=S.episodes[ep];
+  let segs=[];
+  e.segments.forEach((s,i)=>{
+    if(cb&&e.callbackIndex===i){
+      const key=cb.key||hashStr(segText(cb));
+      segs=segs.concat(flattenTurns(cb.turns,"cb:"+S.id+":"+ep+":"+key,"callback",cb.live));
+    }
+    segs=segs.concat(flattenTurns(s.turns,"ep:"+S.id+":"+ep+":"+i,"script"));
+  });
+  if(ep===3&&closing){
+    const key=closing.key||hashStr(segText(closing));
+    segs=segs.concat(flattenTurns(closing.turns,"end:"+S.id+":"+key,"closing",closing.live));
+  }
+  return segs;
+}
+function StorySoFar({S,canon}){
+  const [open,setOpen]=useState(false);
+  if(!canon.choices.length) return null;
+  return (
+    <div className="mt-6 border border-line rounded-xl overflow-hidden">
+      <button onClick={()=>setOpen(!open)}
+        className="w-full text-left px-4 py-3 text-[11px] tracking-[0.14em] uppercase text-muted hover:text-bone transition-colors flex justify-between items-center">
+        <span>Your story so far</span><span>{open?"−":"+"}</span>
+      </button>
+      {open&&
+        <div className="px-4 pb-4 space-y-3 text-[12.5px] fadein">
+          <div>
+            {canon.choices.map((c,i)=>
+              <div key={i} className="flex gap-2 items-baseline py-0.5">
+                <span className="text-muted shrink-0">Ep {c.epIndex+1}</span>
+                <span className="text-bone/85">{c.label}</span>
+                <span className={"text-[9.5px] uppercase tracking-wider shrink-0 "+(c.canonStatus==="PASSED"?"text-emerald-400":"text-amber-400")}>{c.canonStatus}</span>
+              </div>)}
+          </div>
+          {canon.clues.length>0&&
+            <div><span className="text-muted">Clues: </span><span className="text-bone/85">{canon.clues.join(" · ")}</span></div>}
+          <div className="flex gap-2 flex-wrap">
+            {TRAITS.map(t=>(canon.traits[t]||0)>0&&
+              <span key={t} className="text-[10.5px] border border-line rounded-full px-2.5 py-1 text-bone/80">
+                {TRAIT_LABEL[t]} +{canon.traits[t]}
+              </span>)}
+          </div>
+        </div>}
+    </div>
+  );
+}
+function SpeakerCaption({S,sid,cur}){
+  const cast=VOICE_CAST[sid]&&VOICE_CAST[sid][cur.sp];
+  if(!cast||!cast.label) return null;
+  return <div className="text-[10.5px] tracking-[0.18em] uppercase font-bold mb-1.5" style={{color:S.theme.accent}}>{cast.label}</div>;
+}
+function PlayerScreen({S,ep,cb,closing,canon,onEnd,onBack,portalOpen,onPortalOpen}){
+  const e=S.episodes[ep];
+  const segments=useMemo(()=>buildSegments(S,ep,cb,closing),[S,ep,cb,closing]);
+  const endedRef=useRef(false);
+  const [muted,setMuted]=useState(SFX.isMuted);
+  const nar=useNarrator({segments,sid:S.id,onDone:()=>{
+    if(endedRef.current)return; endedRef.current=true;
+    setTimeout(onEnd,900);
+  }});
+  // prefetch order: rest of this episode -> this decision's interludes -> next episode
+  useEffect(()=>{
+    let w=[...segments];
+    if(e.decision) e.decision.options.forEach(o=>{ w=w.concat(flattenTurns(o.interlude.turns,"int:"+o.id,"interlude")); });
+    const nxt=S.episodes[ep+1];
+    if(nxt) nxt.segments.forEach((s,i)=>{ w=w.concat(flattenTurns(s.turns,"ep:"+S.id+":"+(ep+1)+":"+i,"script")); });
+    warm(w,S.id);
+  },[S,ep]);
+  useEffect(()=>{ SFX.setBed(e.ambient); },[S.id,e.ambient]);
+  useEffect(()=>{ SFX.duck(nar.playing&&!nar.paused); },[nar.playing,nar.paused]);
+  useEffect(()=>{ SFX.setMuted(muted); },[muted]);
+  useEffect(()=>{const stop=()=>{if(nar.playing&&!nar.paused)nar.toggle();};window.addEventListener('storypulse:portal-open',stop);return()=>window.removeEventListener('storypulse:portal-open',stop);},[nar.playing,nar.paused]);
+  // heartbeat: fade in over the last two turns of a cliffhanger episode (1-3)
+  useEffect(()=>{
+    const remaining=segments.length-1-nar.idx;
+    if(ep<3 && nar.playing && remaining<=1) SFX.heartbeatIn(); else SFX.heartbeatOut();
+    return ()=>SFX.heartbeatOut();
+  },[nar.idx,nar.playing,ep,segments.length]);
+  const cur=segments[nar.idx]||segments[0];
+  const started=nar.playing||nar.done||nar.idx>0||nar.frac>0;
+  const wfColor=(cur&&VOICE_CAST[S.id][cur.sp]&&VOICE_CAST[S.id][cur.sp].color)||S.theme.accent;
+  return (
+    <div className="min-h-screen flex justify-center px-5 py-7" style={{background:S.theme.playerBg}}>
+      {S.theme.grain&&<div className="grain vignette fixed inset-0 pointer-events-none"/>}
+      <div className="w-full max-w-md relative">
+        <div className="flex items-center justify-between mb-8">
+          <BackBtn onClick={onBack}/>
+          <div className="flex gap-2 items-center">
+            {portalOpen&&<button onClick={onPortalOpen} className="portal-open-pill" type="button">Portal Open</button>}
+            <TierBadge tier={nar.tier}/><ModePill/>
+            <button onClick={()=>setMuted(m=>!m)} aria-label={muted?"Unmute sound":"Mute sound"}
+              className="w-7 h-7 rounded-full border border-line text-muted hover:text-bone hover:border-muted transition-colors text-[11px] shrink-0">
+              {muted?"🔇":"🔊"}
+            </button>
+          </div>
+        </div>
+        <Eyebrow color={S.theme.accent}>{S.title} · Episode {e.n} of 4</Eyebrow>
+        <h1 className="font-display font-black text-[32px] leading-[1.04] tracking-[-0.025em] mt-2 mb-7">{e.title}</h1>
+
+        <div className="min-h-[150px] mb-6">
+          {!started
+            ? <p className="text-muted italic text-[15px]">Press play to begin the episode.</p>
+            : <div className="fadein" key={nar.idx}>
+                {cur.kind==="callback"&&
+                  <div className="flex gap-2 items-center mb-2">
+                    <span className="text-[9px] tracking-[0.16em] uppercase rounded-full px-2 py-0.5 border" style={{borderColor:S.theme.accent+"66",color:S.theme.accent}}>your choice</span>
+                    {cur.live&&<LiveTag/>}
+                  </div>}
+                {cur.kind==="closing"&&
+                  <div className="flex gap-2 items-center mb-2">
+                    <span className="text-[9px] tracking-[0.16em] uppercase rounded-full px-2 py-0.5 border border-line text-muted">closing scene — shaped by your path</span>
+                    {cur.live&&<LiveTag/>}
+                  </div>}
+                <SpeakerCaption S={S} sid={S.id} cur={cur}/>
+                <p className={"text-[17px] leading-[1.65] "+(cur.kind==="callback"?"pl-3 border-l-2 ":"")+(cur.sp&&cur.sp!=="narrator"?"italic":"")}
+                   style={cur.kind==="callback"?{borderColor:S.theme.accent}:{}}>
+                  {cur.t}
+                </p>
+              </div>}
+          {nar.composing&&<p className="compose text-[11.5px] tracking-[0.14em] uppercase text-muted mt-3">Composing voice…</p>}
+        </div>
+
+        <Waveform on={nar.playing&&!nar.paused} color={wfColor}/>
+        <div className="h-1 rounded-full bg-white/10 overflow-hidden mt-2 mb-6">
+          <div className="h-full barfill" style={{width:Math.round(nar.progress*100)+"%",background:S.theme.accent}}/>
+        </div>
+
+        <div className="flex items-center justify-center gap-6">
+          <button onClick={nar.restart} aria-label="Restart episode"
+            className="w-11 h-11 rounded-full border border-line text-muted hover:text-bone hover:border-muted transition-colors text-[15px]">↻</button>
+          <button onClick={nar.toggle} aria-label={nar.playing&&!nar.paused?"Pause":"Play"}
+            className="w-16 h-16 rounded-full text-ink text-[20px] font-bold transition-transform active:scale-95"
+            style={{background:S.theme.accent}}>
+            {nar.playing&&!nar.paused?"❚❚":"▶"}
+          </button>
+          <button onClick={nar.skipNext} aria-label="Next line"
+            className="w-11 h-11 rounded-full border border-line text-muted hover:text-bone hover:border-muted transition-colors text-[13px]">⇥</button>
+        </div>
+        <div className="text-center mt-2.5 text-[10px] tracking-[0.14em] uppercase text-muted/70">
+          Next line ⇥
+        </div>
+
+        <StorySoFar S={S} canon={canon}/>
+      </div>
+    </div>
+  );
+}
+/* =====================================================================
+   DECISION SCREEN
+===================================================================== */
+function optionCounts(decision,sessionPicks){
+  return decision.options.map(o=>({
+    o, count:o.seed+sessionPicks.filter(p=>p.decisionId===decision.id&&p.optionId===o.id).length
+  }));
+}
+function socialLine(decision,pickedId,sessionPicks){
+  const rows=optionCounts(decision,sessionPicks);
+  const total=rows.reduce((a,r)=>a+r.count,0);
+  const freeN=decision.freeSeed.count+sessionPicks.filter(p=>p.decisionId===decision.id&&!p.optionId).length;
+  if(pickedId==null){
+    const pct=Math.max(1,Math.round(freeN/(total+freeN)*100));
+    return "Only "+pct+"% of listeners wrote their own action. You're one of them.";
+  }
+  const plur=rows.reduce((a,b)=>b.count>a.count?b:a,rows[0]);
+  const pct=Math.round(plur.count/total*100);
+  return pct+"% of listeners chose "+plur.o.traitWord+". "+(plur.o.id===pickedId?"You're with them.":"You didn't.");
+}
+function DecisionScreen({S,ep,onChoose,onFree,busy}){
+  const e=S.episodes[ep];
+  const d=e.decision;
+  const cliff=segText(e.segments[e.segments.length-1]);
+  const [text,setText]=useState("");
+  const [listening,setListening]=useState(false);
+  const recRef=useRef(null);
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const mic=()=>{
+    if(!SR)return;
+    if(listening){ try{recRef.current&&recRef.current.stop()}catch(e){} setListening(false); return; }
+    try{
+      const r=new SR(); recRef.current=r;
+      r.lang="en-IN"; r.interimResults=false;
+      r.onresult=ev=>{ setText(ev.results[0][0].transcript); setListening(false); };
+      r.onend=()=>setListening(false);
+      r.onerror=()=>setListening(false);
+      r.start(); setListening(true);
+    }catch(e){ setListening(false); }
+  };
+  return (
+    <div className="min-h-screen flex justify-center px-5 py-8" style={{background:S.theme.playerBg}}>
+      <div className="w-full max-w-md fadeup">
+        <Eyebrow color={S.theme.accent}>{S.title} · after episode {e.n}</Eyebrow>
+        <blockquote className="mt-3 mb-7 pl-3 border-l-2 text-[13.5px] leading-relaxed text-bone/60 italic" style={{borderColor:S.theme.accent+"88"}}>
+          {cliff}
+        </blockquote>
+        <h1 className="font-display font-black text-[28px] tracking-[-0.02em] mb-6">{d.prompt}</h1>
+        <div className="space-y-3 mb-2">
+          {d.options.map((o,i)=>
+            <button key={o.id} onClick={()=>!busy&&onChoose(o)} disabled={busy}
+              className="w-full text-left rounded-xl border border-line bg-panel hover:border-indigo p-4 transition-all hover:translate-x-1 disabled:opacity-60 fadeup"
+              style={{animationDelay:(i*90)+"ms"}}>
+              <div className="flex gap-3 items-baseline">
+                <span className="text-[11px] font-semibold text-muted">{String.fromCharCode(65+i)}</span>
+                <div>
+                  <div className="font-semibold text-[15px]">{o.label}</div>
+                  <div className="text-[12.5px] text-muted mt-0.5 leading-relaxed">{o.desc}</div>
+                </div>
+              </div>
+            </button>)}
+        </div>
+        <div className="text-[10.5px] tracking-[0.12em] uppercase text-muted my-4 text-center">Or decide for yourself…</div>
+        <div className="flex gap-2">
+          <input value={text} onChange={ev=>setText(ev.target.value)} disabled={busy}
+            onKeyDown={ev=>{if(ev.key==="Enter"&&text.trim()&&!busy)onFree(text.trim())}}
+            placeholder={listening?"Listening…":"Type "+d.character+"'s next move"}
+            className="flex-1 min-w-0 bg-panel border border-line rounded-xl px-4 py-3.5 text-[14px] placeholder:text-muted/60 outline-none focus:border-indigo transition-colors"/>
+          {SR&&<button onClick={mic} disabled={busy} aria-label="Speak your choice"
+            className={"w-12 rounded-xl border transition-colors "+(listening?"border-indigo text-indigo compose":"border-line text-muted hover:text-bone")}>
+            ●</button>}
+          <button onClick={()=>text.trim()&&!busy&&onFree(text.trim())} disabled={busy||!text.trim()}
+            className="w-12 rounded-xl bg-indigo text-white font-bold disabled:opacity-40 transition-opacity" aria-label="Submit your choice">→</button>
+        </div>
+        {busy&&<p className="compose text-[11.5px] tracking-[0.14em] uppercase text-indigo mt-4 text-center">Checking canon…</p>}
+        <p className="text-[11.5px] text-muted/80 mt-5 text-center">Your choice may be remembered by the characters.</p>
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================================
+   CANON CHECK
+===================================================================== */
+/* Post-choice screen. Deliberately NEUTRAL: no verdict, no rule, no crowd stats.
+   Those move to the "Your path" recap on the Series Complete screen. The canon
+   gate still runs — the listener just isn't graded mid-story. */
+function CanonCheck({S,verdict,onContinue}){
+  const [shown,setShown]=useState(0);
+  const total=verdict.stateChanges.length;
+  useEffect(()=>{ SFX.sting(); },[]);
+  useEffect(()=>{
+    const timers=[];
+    for(let i=1;i<=total+1;i++) timers.push(setTimeout(()=>setShown(i),350+i*420));
+    const hold=(verdict.kind==="free"?4200:3200)+total*420;
+    timers.push(setTimeout(onContinue,hold));
+    return ()=>timers.forEach(clearTimeout);
+  },[]);
+  return (
+    <div className="min-h-screen flex items-center justify-center px-5" style={{background:S.theme.playerBg}}>
+      <div className="w-full max-w-md fadeup" onClick={onContinue} role="button" aria-label="Continue">
+        <div className="rounded-2xl border border-line bg-panel/80 p-6 backdrop-blur">
+          <Eyebrow color="#8B8FA0">Your move</Eyebrow>
+          <div className="mt-3 mb-5 text-[15px]">Choice recorded: <span className="font-semibold">{verdict.label}</span></div>
+
+          {verdict.kind==="free"&&
+            <div className="mb-5 rounded-xl border border-line p-3.5 text-[12.5px] space-y-1.5 fadein">
+              <div className="flex gap-2 items-center">
+                <span className="text-muted uppercase text-[9.5px] tracking-[0.14em]">intent</span>
+                <span className="font-medium">{verdict.intent}</span>
+                {verdict.live&&<LiveTag/>}
+              </div>
+              {verdict.variables&&["action","approach","risk_level"].map(k=>verdict.variables[k]&&
+                <div key={k} className="flex gap-2 items-baseline">
+                  <span className="text-muted uppercase text-[9.5px] tracking-[0.14em] shrink-0">{k.replace("_"," ")}</span>
+                  <span className="text-bone/80 truncate">{String(verdict.variables[k])}</span>
+                </div>)}
+            </div>}
+
+          <div className="space-y-2 mb-5 min-h-[64px]">
+            {verdict.stateChanges.map((sc,i)=>
+              <div key={i} className={"flex gap-2 items-center text-[13px] transition-all duration-500 "+(shown>i?"opacity-100 translate-x-0":"opacity-0 -translate-x-2")}>
+                <span style={{color:S.theme.accent}}>▸</span><span className="text-bone/90">{sc}</span>
+              </div>)}
+          </div>
+
+          <div className={"transition-all duration-500 "+(shown>total?"opacity-100":"opacity-0")}>
+            <p className="text-[12.5px] text-muted">The story remembers this.</p>
+          </div>
+        </div>
+        <div className="text-center text-[10px] uppercase tracking-[0.14em] text-muted/60 mt-4">tap to continue</div>
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================================
+   INTERLUDE
+===================================================================== */
+function InterludeScreen({S,ep,verdict,onContinue,onPortal}){
+  const [scene,setScene]=useState(null);
+  const d=S.episodes[ep].decision;
+  useEffect(()=>{
+    let dead=false;
+    (async()=>{
+      // A redirected choice opens with its reconcile beat — the world pushing back —
+      // so the redirect plays as story here instead of as a verdict on the last screen.
+      const leadTurns=(verdict.canonStatus==="REDIRECTED"&&verdict.reconcileTurns)?verdict.reconcileTurns:[];
+      const gen=await genInterlude(S,verdict.canonRef,d,verdict.label);
+      if(dead)return;
+      if(gen){
+        const genTurns=makeLiveTurns("narrator",gen.scene,gen.voiceDirection||"Intimate, close to the mic.");
+        const allTurns=leadTurns.concat(genTurns);
+        setScene({turns:allTurns,live:true,key:"live-"+hashStr(allTurns.map(t=>t.t).join(" "))});
+      }else{
+        const o=d.options.find(x=>x.id===(verdict.optionId||verdict.mappedOptionId))||d.options[0];
+        const allTurns=leadTurns.concat(o.interlude.turns);
+        setScene({turns:allTurns,live:false,key:"int:"+o.id+(leadTurns.length?":r"+hashStr(leadTurns.map(t=>t.t).join(" ")):"")});
+      }
+    })();
+    return ()=>{dead=true};
+  },[]);
+  return (
+    <div className="min-h-screen flex justify-center px-5 py-8" style={{background:"linear-gradient(180deg,#0B0A10 0%,#0F0D16 100%)"}}>
+      <div className="w-full max-w-md fadeup">
+        <div className="flex items-center gap-2.5 mb-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo pulsedot"/>
+          <Eyebrow color="#5B67D8">Private scene — generated for you</Eyebrow>
+        </div>
+        <p className="text-[11.5px] text-muted mb-8">No other listener hears this exact scene.</p>
+        {!scene
+          ? <p className="compose text-[13px] tracking-[0.1em] uppercase text-indigo mt-16 text-center">Composing your scene…</p>
+          : <InterludeBody S={S} scene={scene} ep={ep} onContinue={onContinue} onPortal={onPortal}/>}
+      </div>
+    </div>
+  );
+}
+function InterludeBody({S,scene,ep,onContinue,onPortal}){
+  const segments=useMemo(()=>flattenTurns(scene.turns,"intlive:"+(scene.key||hashStr(segText(scene))),"interlude",scene.live),[scene]);
+  const nar=useNarrator({segments,sid:S.id,autostart:true});
+  const [busy,setBusy]=useState(false);
+  const cur=segments[nar.idx]||segments[0]||{t:"",sp:"narrator"};
+  const cast=VOICE_CAST[S.id]&&VOICE_CAST[S.id][cur.sp];
+  return (
+    <div className="fadein">
+      {scene.live&&<div className="mb-3"><LiveTag/></div>}
+      {cast&&cast.label&&
+        <div className="text-[10.5px] tracking-[0.18em] uppercase font-bold mb-1.5" style={{color:"#5B67D8"}}>{cast.label}</div>}
+      <p className={"text-[16.5px] leading-[1.7] text-bone/95 mb-8 "+(cur.sp&&cur.sp!=="narrator"?"italic":"")}>{cur.t}</p>
+      {nar.composing&&<p className="compose text-[11px] tracking-[0.14em] uppercase text-muted mb-3">Composing voice…</p>}
+      <div className="flex items-center gap-4 mb-2">
+        <button onClick={nar.toggle} aria-label={nar.playing&&!nar.paused?"Pause":"Play scene"}
+          className="w-12 h-12 rounded-full bg-indigo text-white text-[15px] font-bold shrink-0 transition-transform active:scale-95">
+          {nar.playing&&!nar.paused?"❚❚":"▶"}
+        </button>
+        <div className="flex-1"><Waveform on={nar.playing&&!nar.paused} color={(cast&&cast.color)||"#5B67D8"} h={34}/></div>
+        <TierBadge tier={nar.tier}/>
+      </div>
+      <div className="h-0.5 rounded-full bg-white/10 overflow-hidden mb-8">
+        <div className="h-full barfill bg-indigo" style={{width:Math.round(nar.progress*100)+"%"}}/>
+      </div>
+      <button disabled={busy} onClick={async()=>{setBusy(true);if(onPortal)onPortal();else await onContinue();}}
+        className="w-full rounded-xl py-4 font-display font-bold text-[16px] text-ink transition-transform active:scale-[0.98] disabled:opacity-70"
+        style={{background:S.theme.accent}}>
+        {busy?"Preparing episode…":(ep+1<4?"Continue to Episode "+(ep+2):"Continue")}
+      </button>
+    </div>
+  );
+}
+
+/* =====================================================================
+   YOUR PATH — verdicts + crowd stats, held back until the series ends
+===================================================================== */
+function YourPath({S,canon,sessionPicks}){
+  const decisions=S.episodes.filter(e=>e.decision).map(e=>e.decision);
+  return (
+    <div className="rounded-2xl border border-line bg-panel/70 p-5 mb-6">
+      <Eyebrow color={S.theme.accent}>Your path</Eyebrow>
+      <p className="text-[12px] text-muted mt-1.5 mb-5">What you chose — and what everyone else did.</p>
+
+      {decisions.map((d,di)=>{
+        const mine=canon.choices.find(c=>c.decisionId===d.id);
+        const rows=optionCounts(d,sessionPicks);
+        const total=rows.reduce((a,r)=>a+r.count,0);
+        const freeN=d.freeSeed.count+sessionPicks.filter(p=>p.decisionId===d.id&&!p.optionId).length;
+        const wroteOwn=mine&&!mine.optionId;
+        const pctOf=r=>Math.round(r.count/total*100);
+        let social="";
+        if(wroteOwn){
+          social="Only "+Math.max(1,Math.round(freeN/(total+freeN)*100))+"% wrote their own move. You did.";
+        }else if(mine){
+          const r=rows.find(x=>x.o.id===mine.optionId);
+          const p=r?pctOf(r):0;
+          social=p>=40?("You were with the "+p+"%."):("Only "+p+"% dared this.");
+        }
+        return (
+          <div key={d.id} className={di?"mt-6 pt-5 border-t border-line":""}>
+            <div className="text-[10px] tracking-[0.14em] uppercase text-muted mb-1">
+              Episode {di+1} · {d.prompt}
+            </div>
+            {/* tapped choices are marked "your choice" on their own bar below,
+                so only free text needs spelling out here */}
+            {wroteOwn&&
+              <div className="text-[14px] mb-3">
+                You wrote your own move: <span className="font-semibold" style={{color:S.theme.accent}}>“{mine.intent||mine.label}”</span>
+              </div>}
+
+            <div className="space-y-2">
+              {rows.map(({o,count})=>{
+                const p=Math.round(count/total*100);
+                const isMine=mine&&mine.optionId===o.id;
+                const justNow=sessionPicks.some(x=>x.decisionId===d.id&&x.optionId===o.id);
+                return (
+                  <div key={o.id} className={"rounded-lg px-2 py-1 -mx-2 "+(justNow?"plus1":"")}>
+                    <div className="flex items-baseline justify-between gap-2 text-[12.5px] mb-1">
+                      <span className="min-w-0 flex-1 flex items-baseline gap-x-1.5 gap-y-0.5 flex-wrap">
+                        <span className={"truncate max-w-full "+(isMine?"font-semibold":"text-bone/70")}>{o.label}</span>
+                        {o.canonStatus==="PASSED"&&
+                          <span className="shrink-0 text-[9px] uppercase tracking-wider text-emerald-400 font-semibold">★ writer's canon path</span>}
+                        {isMine&&
+                          <span className="shrink-0 text-[9px] uppercase tracking-wider font-semibold" style={{color:S.theme.accent}}>your choice</span>}
+                        {justNow&&
+                          <span className="shrink-0 text-[9px] uppercase tracking-wider font-semibold text-indigo">+1</span>}
+                      </span>
+                      <span className="text-muted shrink-0">{p}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      <div className="h-full barfill rounded-full"
+                        style={{width:p+"%",background:isMine?S.theme.accent:(o.canonStatus==="PASSED"?"#4B5468":"#333A4A")}}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-2.5 text-[12.5px] font-semibold text-indigo">{social}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* =====================================================================
+   SERIES COMPLETE
+===================================================================== */
+function CompleteScreen({S,canon,sessionPicks,onReplay,onHome}){
+  const path=canon.path||dominantTrait(canon.traits);
+  const closing=canon.closing;
+  const segments=useMemo(()=>closing?flattenTurns(closing.turns,"end:"+S.id+":"+(closing.key||hashStr(segText(closing))),"closing",closing.live):[],[closing]);
+  const nar=useNarrator({segments,sid:S.id});
+  const curClosing=segments[nar.idx]||segments[0];
+  const closingCast=curClosing&&VOICE_CAST[S.id][curClosing.sp];
+  const maxTrait=Math.max(1,...TRAITS.map(t=>canon.traits[t]||0));
+  return (
+    <div className="min-h-screen flex justify-center px-5 py-9" style={{background:S.theme.playerBg}}>
+      <div className="w-full max-w-md fadeup">
+        <Eyebrow color={S.theme.accent}>Series complete</Eyebrow>
+        <h1 className="font-display font-black text-[30px] leading-[1.05] tracking-[-0.02em] mt-2">
+          Your version of {S.title}:<br/><span style={{color:S.theme.accent}}>{(S.pathNames&&S.pathNames[path])||PATHS[path].name}</span>
+        </h1>
+        <p className="text-[13.5px] text-muted mt-2 mb-7">{S.pathFlavor[path]}</p>
+
+        <YourPath S={S} canon={canon} sessionPicks={sessionPicks}/>
+
+        {closing&&
+          <div className="rounded-2xl border border-line bg-panel/70 p-5 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <Eyebrow>Your closing scene</Eyebrow>
+              <div className="flex gap-2 items-center">{closing.live&&<LiveTag/>}<TierBadge tier={nar.tier}/></div>
+            </div>
+            {closingCast&&closingCast.label&&
+              <div className="text-[10px] tracking-[0.18em] uppercase font-bold mb-1" style={{color:S.theme.accent}}>{closingCast.label}</div>}
+            <p className={"text-[14px] leading-[1.7] text-bone/90 mb-4 "+(curClosing&&curClosing.sp&&curClosing.sp!=="narrator"?"italic":"")}>{curClosing?curClosing.t:""}</p>
+            <div className="flex items-center gap-3">
+              <button onClick={nar.toggle} aria-label="Replay closing scene"
+                className="w-10 h-10 rounded-full text-ink text-[13px] font-bold shrink-0" style={{background:S.theme.accent}}>
+                {nar.playing&&!nar.paused?"❚❚":"▶"}
+              </button>
+              <div className="flex-1"><Waveform on={nar.playing&&!nar.paused} color={(closingCast&&closingCast.color)||S.theme.accent} h={28}/></div>
+            </div>
+            {nar.composing&&<p className="compose text-[10.5px] tracking-[0.14em] uppercase text-muted mt-2">Composing voice…</p>}
+          </div>}
+
+        <div className="rounded-2xl border border-line bg-panel/70 p-5 mb-6 space-y-4">
+          <div>
+            <Eyebrow>Your choices</Eyebrow>
+            <div className="mt-2.5 space-y-1.5">
+              {canon.choices.map((c,i)=>
+                <div key={i} className="flex gap-2 items-baseline text-[13px]">
+                  <span className="text-muted shrink-0 w-9">Ep {c.epIndex+1}</span>
+                  <span className="text-bone/90 flex-1">{c.label}</span>
+                  <span className={"text-[9.5px] uppercase tracking-wider "+(c.canonStatus==="PASSED"?"text-emerald-400":"text-amber-400")}>{c.canonStatus}</span>
+                </div>)}
+            </div>
+          </div>
+          <div>
+            <Eyebrow>How the story read you</Eyebrow>
+            <div className="mt-2.5 space-y-2">
+              {TRAITS.map(t=>
+                <div key={t} className="flex items-center gap-3 text-[12.5px]">
+                  <span className="w-20 text-muted">{TRAIT_LABEL[t]}</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full barfill" style={{width:Math.round((canon.traits[t]||0)/maxTrait*100)+"%",background:t===path?S.theme.accent:"#3A3F52"}}/>
+                  </div>
+                  <span className="w-5 text-right text-muted">{canon.traits[t]||0}</span>
+                </div>)}
+            </div>
+          </div>
+          {canon.clues.length>0&&
+            <div>
+              <Eyebrow>Clues you uncovered</Eyebrow>
+              <p className="mt-2 text-[12.5px] text-bone/85 leading-relaxed">{canon.clues.join(" · ")}</p>
+            </div>}
+        </div>
+
+        <button onClick={onReplay}
+          className="w-full rounded-xl py-4 font-display font-bold text-[16px] text-ink mb-3 transition-transform active:scale-[0.98]"
+          style={{background:S.theme.accent}}>
+          ↻ Replay — walk a different path
+        </button>
+        <button onClick={onHome}
+          className="w-full rounded-xl py-3.5 border border-line text-muted hover:text-bone text-[13.5px] transition-colors">
+          Back to stories
+        </button>
+      </div>
+    </div>
+  );
+}
+/* =====================================================================
+   WRITER STUDIO
+===================================================================== */
+function distFor(S,sessionPicks){
+  return S.episodes.filter(e=>e.decision).map(e=>{
+    const d=e.decision;
+    const rows=optionCounts(d,sessionPicks).map(({o,count})=>({
+      label:o.label,count,canon:o.canonStatus==="PASSED",optionId:o.id,
+      picked:sessionPicks.some(p=>p.decisionId===d.id&&p.optionId===o.id)
+    }));
+    const total=rows.reduce((a,r)=>a+r.count,0);
+    rows.forEach(r=>r.pct=Math.round(r.count/total*100));
+    const sessFree=sessionPicks.filter(p=>p.decisionId===d.id&&!p.optionId);
+    const intents=[...d.freeSeed.intents.map(([n,c])=>({n,c})),...sessFree.map(p=>({n:p.intent||"Custom action",c:1,now:true}))]
+      .sort((a,b)=>b.c-a.c).slice(0,3);
+    return {d,cliff:segText(e.segments[e.segments.length-1]),rows,free:d.freeSeed.count+sessFree.length,
+            freeNow:sessFree.length>0,intents,ep:e.n};
+  });
+}
+function StudioTeaser({S,dists,teaser,setTeaser}){
+  const [loading,setLoading]=useState(false);
+  const segments=useMemo(()=>teaser?flattenTurns(teaser.turns,"teaser:"+S.id+":"+hashStr(segText(teaser)),"teaser",teaser.live):[],[teaser]);
+  const nar=useNarrator({segments,sid:S.id});
+  const cur=segments[nar.idx]||segments[0];
+  const cast=cur&&VOICE_CAST[S.id][cur.sp];
+  const generate=async()=>{
+    setLoading(true);
+    const r=await genTeaser(S,dists);
+    setTeaser(r?{turns:makeLiveTurns("narrator",r.teaser,r.voiceDirection||S.teaser.vd),reasoning:r.reasoning||S.teaser.reasoning,live:true}
+               :{...S.teaser,live:false});
+    setLoading(false);
+  };
+  return (
+    <section className="bg-white rounded-2xl border border-[#E3E0D6] p-5 mb-6">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+        <h3 className="font-display font-bold text-[17px]">Next-episode teaser</h3>
+        <button onClick={generate} disabled={loading}
+          className="text-[12px] font-semibold rounded-full px-4 py-2 text-white disabled:opacity-60 transition-opacity"
+          style={{background:"#5B67D8"}}>
+          {loading?"Generating…":"Generate from audience data"}
+        </button>
+      </div>
+      <p className="text-[12px] text-[#8A8676] mb-4">A cold open for a hypothetical episode 5, shaped by what this audience showed they want.</p>
+      {loading&&<div className="shimmer h-20 rounded-xl bg-[#F1EFE8]"/>}
+      {teaser&&!loading&&
+        <div className="fadein">
+          <div className="rounded-xl border border-[#E3E0D6] bg-[#FBFAF6] p-4 mb-3">
+            <div className="flex items-center gap-2 mb-2">
+              {teaser.live?<LiveTag/>:<span className="text-[9px] tracking-[0.14em] uppercase text-[#8A8676] border border-[#E3E0D6] rounded-full px-2 py-0.5">authored fallback</span>}
+              <TierBadge tier={nar.tier}/>
+            </div>
+            {cast&&cast.label&&<div className="text-[9.5px] tracking-[0.16em] uppercase font-bold mb-1" style={{color:S.theme.accent}}>{cast.label}</div>}
+            <p className="text-[14.5px] leading-[1.7] text-[#1A1D26] italic">"{cur?cur.t:""}"</p>
+            <div className="flex items-center gap-3 mt-4">
+              <button onClick={nar.toggle} aria-label="Play teaser"
+                className="w-10 h-10 rounded-full text-white text-[13px] font-bold shrink-0" style={{background:S.theme.accent}}>
+                {nar.playing&&!nar.paused?"❚❚":"▶"}
+              </button>
+              <div className="flex-1 text-[#B9B4A4]"><Waveform on={nar.playing&&!nar.paused} color={(cast&&cast.color)||S.theme.accent} h={26}/></div>
+            </div>
+            {nar.composing&&<p className="compose text-[10px] tracking-[0.14em] uppercase text-[#8A8676] mt-2">Composing voice…</p>}
+          </div>
+          <p className="text-[12.5px] text-[#5C5850]"><span className="font-semibold" style={{color:"#5B67D8"}}>Why this teaser: </span>{teaser.reasoning}</p>
+        </div>}
+    </section>
+  );
+}
+function Studio({canon,sessionPicks,insights,setInsights,teasers,setTeasers,onBack}){
+  const [sid,setSid]=useState("hollow");
+  const [regen,setRegen]=useState(false);
+  const S=getSeries(sid);
+  const dists=useMemo(()=>distFor(S,sessionPicks),[S,sessionPicks]);
+  const lines=insights[sid]||dists.map(x=>x.d.insightFallback);
+  const regenerate=async()=>{
+    setRegen(true);
+    const r=await genInsights(S,dists);
+    if(r&&r.length) setInsights(p=>({...p,[sid]:r}));
+    setRegen(false);
+  };
+  const summary=[["Listeners",fmtNum(S.stats.listeners)],["Completion",S.stats.completion+"%"],
+                 ["Avg choices",S.stats.avgChoices],["Interlude replays",S.stats.replayRate+"%"]];
+  return (
+    <div className="min-h-screen bg-paper text-[#1A1D26]" style={{fontFamily:"Inter,system-ui,sans-serif"}}>
+      <div className="max-w-2xl mx-auto px-5 py-7">
+        <header className="flex items-center justify-between mb-1 flex-wrap gap-2">
+          <button className="text-[10px] tracking-[0.14em] font-semibold text-[#5B67D8] border border-[#DDE1F8] rounded-full px-2.5 py-1 uppercase" onClick={()=>{window.PocketPortal.open(2);setTimeout(()=>{try{document.getElementById('portal-frame').contentWindow.document.getElementById('writer-studio-toggle').click();}catch(e){}},60)}}>The Portal</button>
+          <button onClick={onBack} className="text-[12px] tracking-[0.1em] uppercase font-semibold text-[#8A8676] hover:text-[#1A1D26] transition-colors">← Listener app</button>
+          <span className="text-[10px] tracking-[0.14em] font-semibold text-[#8A8676] border border-[#E3E0D6] rounded-full px-2.5 py-1 uppercase">{GEN_MODE.toUpperCase()}{liveAllowed()?"":" · OFFLINE"}</span>
+        </header>
+        <h1 className="font-display font-black text-[26px] tracking-[-0.02em]">Writer Studio</h1>
+        <p className="text-[12px] text-[#8A8676] mb-5">Aggregates simulated at demo scale; <span className="font-semibold text-[#5B67D8]">your session is merged live</span>.</p>
+
+        <div className="flex gap-2 mb-6">
+          {ALL_SERIES.map(x=>
+            <button key={x.id} onClick={()=>setSid(x.id)}
+              className={"rounded-full px-4 py-2 text-[12.5px] font-semibold border transition-colors "+(x.id===sid?"bg-[#1A1D26] text-white border-[#1A1D26]":"border-[#E3E0D6] text-[#5C5850] hover:border-[#B9B4A4]")}>
+              {x.title}
+            </button>)}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          {summary.map(([k,v])=>
+            <div key={k} className="bg-white rounded-xl border border-[#E3E0D6] p-3.5">
+              <div className="text-[10px] tracking-[0.12em] uppercase text-[#8A8676] mb-1">{k}</div>
+              <div className="font-display font-bold text-[20px]">{v}</div>
+            </div>)}
+        </div>
+
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-display font-bold text-[18px]">Decision points</h2>
+          <button onClick={regenerate} disabled={regen}
+            className="text-[12px] font-semibold rounded-full px-4 py-2 border border-[#5B67D8] text-[#5B67D8] hover:bg-[#5B67D8] hover:text-white transition-colors disabled:opacity-60">
+            {regen?"Reading the audience…":"↻ Regenerate insights"}
+          </button>
+        </div>
+
+        {dists.map((x,i)=>
+          <section key={x.d.id} className="bg-white rounded-2xl border border-[#E3E0D6] p-5 mb-4">
+            <div className="text-[10px] tracking-[0.14em] uppercase text-[#8A8676] mb-1.5">Decision {i+1} · after episode {x.ep}</div>
+            <p className="text-[12.5px] text-[#5C5850] italic leading-relaxed mb-4 border-l-2 pl-3" style={{borderColor:S.theme.accent}}>{x.cliff}</p>
+            <div className="space-y-2.5 mb-4">
+              {x.rows.map(r=>
+                <div key={r.optionId} className={"rounded-lg px-2 py-1 -mx-2 "+(r.picked?"plus1":"")}>
+                  <div className="flex items-baseline justify-between text-[13px] mb-1 gap-2">
+                    <span className="min-w-0 flex-1 flex items-baseline gap-x-1.5 gap-y-0.5 flex-wrap">
+                      <span className="font-medium truncate max-w-full">{r.label}</span>
+                      {r.canon&&<span className="shrink-0 text-[9.5px] uppercase tracking-wider text-emerald-600 font-semibold">★ canonical</span>}
+                      {r.picked&&<span className="shrink-0 text-[9.5px] uppercase tracking-wider font-semibold" style={{color:"#5B67D8"}}>+1 just now</span>}
+                    </span>
+                    <span className="text-[#8A8676] shrink-0">{r.pct}% · {fmtNum(r.count)}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-[#EFEDE5] overflow-hidden">
+                    <div className="h-full barfill rounded-full" style={{width:r.pct+"%",background:r.canon?S.theme.accent:"#C9C4B4"}}/>
+                  </div>
+                </div>)}
+            </div>
+            <div className="text-[12px] text-[#5C5850] mb-4">
+              <span className="font-semibold">{fmtNum(x.free)} free-text choices</span>
+              {x.freeNow&&<span className="ml-1.5 text-[9.5px] uppercase tracking-wider font-semibold" style={{color:"#5B67D8"}}>+1 just now</span>}
+              <span className="text-[#8A8676]"> — top intents: </span>
+              {x.intents.map((it,j)=><span key={j}>{j>0&&", "}<span className={it.now?"font-semibold text-[#5B67D8]":""}>{it.n} ({it.c})</span></span>)}
+            </div>
+            <div className="rounded-xl bg-[#F4F6FF] border border-[#DDE1F8] p-3.5">
+              <div className="text-[9.5px] tracking-[0.16em] uppercase font-bold mb-1" style={{color:"#5B67D8"}}>What this means</div>
+              {regen? <div className="shimmer h-9 rounded bg-[#E8EBFA]"/>
+                : <p className="text-[13px] leading-relaxed">{lines[i]||x.d.insightFallback}{insights[sid]&&<span className="ml-2 align-middle"><LiveTag/></span>}</p>}
+            </div>
+          </section>)}
+
+        <section className="bg-white rounded-2xl border border-[#E3E0D6] p-5 mb-4">
+          <h3 className="font-display font-bold text-[17px] mb-1">Audience read</h3>
+          <p className="text-[12px] text-[#8A8676] mb-4">How engaged listeners perceive {S.title.replace("The ","the ")}'s protagonist.</p>
+          <div className="space-y-3 mb-5">
+            {S.audienceRead.meters.map(([label,v])=>
+              <div key={label} className="flex items-center gap-3 text-[13px]">
+                <span className="w-40 shrink-0 text-[#5C5850]">{label}</span>
+                <div className="flex-1 h-2 rounded-full bg-[#EFEDE5] overflow-hidden">
+                  <div className="h-full barfill rounded-full" style={{width:v+"%",background:S.theme.accent}}/>
+                </div>
+                <span className="w-8 text-right text-[#8A8676]">{v}</span>
+              </div>)}
+          </div>
+          <div className="text-[10px] tracking-[0.14em] uppercase text-[#8A8676] mb-2 font-semibold">Recommendations</div>
+          <ul className="space-y-1.5">
+            {S.audienceRead.recs.map((r,i)=><li key={i} className="text-[13px] leading-relaxed flex gap-2"><span style={{color:S.theme.accent}}>▸</span>{r}</li>)}
+          </ul>
+        </section>
+
+        <StudioTeaser S={S} dists={dists} teaser={teasers[sid]} setTeaser={t=>setTeasers(p=>({...p,[sid]:t}))}/>
+
+        <footer className="text-[11.5px] text-[#8A8676] leading-relaxed pb-6 text-center">
+          Signals reflect engaged listeners and the options offered. Use them to know when to satisfy expectation — and when to deliberately subvert it.
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================================
+   APP
+===================================================================== */
+function PortalHook({onEnter,onSkip}){
+  const [remaining,setRemaining]=useState(13612);
+  useEffect(()=>{const t=setInterval(()=>setRemaining(x=>Math.max(0,x-1)),1000);return()=>clearInterval(t);},[]);
+  const clock=String(Math.floor(remaining/3600)).padStart(2,'0')+':'+String(Math.floor(remaining%3600/60)).padStart(2,'0')+':'+String(remaining%60).padStart(2,'0');
+  return <section className="portal-hook"><div className="portal-hook-card"><div className="text-[10px] tracking-[.22em] uppercase text-[#c5b598]">The portal is open</div><div className="portal-hook-line"/><h1>The night isn't over.<span>Walk the house. Ask them yourself.</span></h1><p className="portal-presence"><i/>1,284 listeners inside</p><p className="text-[11px] text-[#b7af9f] mt-3">Three questions each. They only know what you know.</p><p className="mt-5 text-[12px] tracking-[.14em] uppercase text-[#d8a94e]">Closes in {clock}</p><button className="portal-step" onClick={onEnter}>Step inside</button><button className="portal-skip" onClick={onSkip}>Continue to Episode 3</button></div></section>;
+}
+function PortalReturn({vote,onContinue}){const pct=(window.PORTAL_WORLD&&window.PORTAL_WORLD.portalRitual&&window.PORTAL_WORLD.portalRitual.voteDistribution[vote])||48;return <section className="portal-return"><div className="portal-return-card"><div className="text-[10px] tracking-[.18em] uppercase text-[#d8a94e]">The house remembers</div><h1>You came out of that house believing it was {vote||'someone close'}.</h1>{vote&&<p className="text-[14px] text-muted">{pct}% of listeners agree with you.</p>}<button onClick={onContinue}>Begin Episode 3</button></div></section>}
+function newCanon(){
+  return {choices:[],traits:{caution:0,aggression:0,trust:0},clues:[],flags:[],
+          nextEp:0,completed:false,path:null,closing:null,callbacks:{}};
+}
+function App(){
+  const [view,setView]=useState({name:"dash"});
+  const [canon,setCanonState]=useState({hollow:newCanon(),anklet:newCanon()});
+  const canonRef=useRef(canon); canonRef.current=canon;
+  const [sessionPicks,setSessionPicks]=useState([]);
+  const sessionRef=useRef(sessionPicks); sessionRef.current=sessionPicks;
+  const [preps,setPreps]=useState({});
+  const [busyGate,setBusyGate]=useState(false);
+  const [insights,setInsights]=useState({});
+  const [teasers,setTeasers]=useState({});
+  const [portalAvailable,setPortalAvailable]=useState(false);
+  useEffect(()=>{const close=e=>{setPortalAvailable(true);setView({name:"portalreturn",vote:e.detail&&e.detail.vote});};window.addEventListener('storypulse:portal-closed',close);return()=>window.removeEventListener('storypulse:portal-closed',close);},[]);
+
+  async function enterEpisode(sid,ep){
+    const S=getSeries(sid);
+    const c=canonRef.current[sid];
+    let cb=null;
+    if(ep>0&&S.episodes[ep].callbackIndex!=null){
+      if(c.callbacks[ep]) cb=c.callbacks[ep];
+      else{
+        const prior=c.choices[c.choices.length-1];
+        if(prior){
+          const line=await genCallback(S,c,ep);
+          const key=prior.optionId||prior.mappedOptionId;
+          cb=line?{turns:makeLiveTurns("narrator",line,S.cbVd),live:true,key:"live-"+hashStr(line)}
+                :{turns:S.episodes[ep].callbacks[key].turns,live:false,key};
+        }
+      }
+    }
+    let closing=c.closing;
+    if(ep===3&&!closing){
+      const gen=await genEnding(S,c);
+      const dom=dominantTrait(c.traits);
+      closing=gen?{turns:makeLiveTurns("narrator",gen.closingScene,gen.voiceDirection||S.endings[dom].vd),live:true,key:"live-"+hashStr(gen.closingScene)}
+                 :{turns:S.endings[dom].turns,live:false,key:dom};
+    }
+    setCanonState(p=>({...p,[sid]:{...p[sid],
+      callbacks:cb?{...p[sid].callbacks,[ep]:cb}:p[sid].callbacks,
+      closing:closing||p[sid].closing}}));
+    setView({name:"player",sid,ep,cb,closing});
+  }
+
+  function onEpisodeEnd(sid,ep){
+    const S=getSeries(sid);
+    if(S.episodes[ep].decision){ setView({name:"decision",sid,ep}); return; }
+    setCanonState(p=>({...p,[sid]:{...p[sid],completed:true,path:dominantTrait(p[sid].traits)}}));
+    setView({name:"complete",sid});
+  }
+
+  function finishChoice(sid,ep,d,verdict){
+    const c=canonRef.current[sid];
+    const nt={...c.traits};
+    for(const k in (verdict.traits||{})) nt[k]=(nt[k]||0)+(verdict.traits[k]||0);
+    const clues=[...c.clues], flags=[...c.flags];
+    (verdict.stateChanges||[]).forEach(sc=>{
+      if(/^new (clue|proof):/i.test(sc)) clues.push(sc.replace(/^new (clue|proof):\s*/i,""));
+      else flags.push(sc);
+    });
+    const newC={...c,
+      choices:[...c.choices,{epIndex:ep,decisionId:d.id,label:verdict.label,optionId:verdict.optionId,
+        mappedOptionId:verdict.mappedOptionId,canonStatus:verdict.canonStatus,traits:verdict.traits,
+        intent:verdict.kind==="free"?(verdict.intent||verdict.label):null}],
+      traits:nt,clues,flags,nextEp:ep+1};
+    setCanonState(p=>({...p,[sid]:newC}));
+    verdict.canonRef=newC;
+    verdict.social=socialLine(d,verdict.optionId,sessionRef.current);
+    setSessionPicks(p=>[...p,{decisionId:d.id,optionId:verdict.optionId,
+      intent:verdict.kind==="free"?verdict.intent:null,seriesId:sid}]);
+    window.STORYPULSE_EVENTS.push({surface:"episode",type:"choice",seriesId:sid,episode:ep+1,value:verdict.label,ts:new Date().toISOString()});
+    setView({name:"check",sid,ep,verdict});
+  }
+
+  function onChoose(sid,ep,option){
+    const d=getSeries(sid).episodes[ep].decision;
+    finishChoice(sid,ep,d,{kind:"authored",label:option.label,optionId:option.id,mappedOptionId:null,
+      canonStatus:option.canonStatus,violatedRule:option.violatedRule||null,reconcileTurns:option.reconcileTurns,
+      stateChanges:option.stateChanges,traits:option.traits,live:false});
+  }
+
+  async function onFree(sid,ep,text){
+    setBusyGate(true);
+    const S=getSeries(sid), d=S.episodes[ep].decision, c=canonRef.current[sid];
+    const res=await genGate(S,c,d,text);
+    let verdict;
+    if(res){
+      const tr=res.traits||{};
+      const domT=TRAITS.reduce((a,b)=>(tr[b]||0)>(tr[a]||0)?b:a,"caution");
+      const mapped=d.options.find(o=>Object.keys(o.traits)[0]===domT)||d.options[0];
+      verdict={kind:"free",label:text,optionId:null,mappedOptionId:mapped.id,
+        intent:res.intent||text.slice(0,40),variables:res.variables||{action:text},
+        canonStatus:res.canonStatus,violatedRule:res.violatedRule||null,
+        reconcileTurns:res.reconcileLine?makeLiveTurns("narrator",res.reconcileLine,S.cbVd):mapped.reconcileTurns,
+        stateChanges:(res.stateChanges&&res.stateChanges.length)?res.stateChanges:mapped.stateChanges,
+        traits:Object.keys(tr).length?tr:mapped.traits, live:true};
+    }else{
+      verdict={kind:"free",label:text,optionId:null,...fallbackGate(S,ep,d,text)};
+    }
+    setBusyGate(false);
+    finishChoice(sid,ep,d,verdict);
+  }
+
+  async function prepare(sid){
+    const S=getSeries(sid);
+    if(!liveAllowed()){
+      setPreps(p=>({...p,[sid]:{note:"Local voice mode — nothing to prepare. The demo runs instantly offline."}}));
+      setTimeout(()=>setPreps(p=>({...p,[sid]:null})),4200);
+      return;
+    }
+    const segs=allSegmentsForPrep(S);
+    const todo=segs.filter(s=>{ const cached=TTSCACHE.get(s.id); return !cached||!cached.url; });
+    if(!todo.length){
+      setPreps(p=>({...p,[sid]:{note:"All "+segs.length+" voices are already cached."}}));
+      setTimeout(()=>setPreps(p=>({...p,[sid]:null})),3600);
+      return;
+    }
+    const already=segs.length-todo.length;
+    let done=already;
+    const t0=Date.now();
+    setPreps(p=>({...p,[sid]:{running:true,done,total:segs.length,eta:null}}));
+    for(let i=0;i<todo.length;i+=WARM_CONCURRENCY){
+      await Promise.all(todo.slice(i,i+WARM_CONCURRENCY).map(s=>ttsGet(s,S.id)));
+      done=Math.min(segs.length,done+WARM_CONCURRENCY);
+      const doneNow=done-already, elapsed=(Date.now()-t0)/1000;
+      const eta=doneNow>0?Math.round((elapsed/doneNow)*(todo.length-doneNow)):null;
+      setPreps(p=>({...p,[sid]:{running:true,done,total:segs.length,eta}}));
+    }
+    const ready=segs.filter(s=>{ const cached=TTSCACHE.get(s.id); return cached&&cached.url; }).length;
+    if(ready!==segs.length){
+      setPreps(p=>({...p,[sid]:{note:ready+" of "+segs.length+" voices are ready. The remaining lines could not be prepared; retry to use studio voice for them."}}));
+      setTimeout(()=>setPreps(p=>({...p,[sid]:null})),5200);
+      return;
+    }
+    setPreps(p=>({...p,[sid]:{note:"Series ready — "+segs.length+" voices cached."}}));
+    setTimeout(()=>setPreps(p=>({...p,[sid]:null})),4200);
+  }
+
+  function startSeries(sid){
+    const c=canonRef.current[sid];
+    if(c.completed){
+      setCanonState(p=>({...p,[sid]:newCanon()}));
+      canonRef.current={...canonRef.current,[sid]:newCanon()};
+      enterEpisode(sid,0);
+    } else enterEpisode(sid,c.nextEp);
+  }
+
+  const v=view;
+  if(v.name==="studio")
+    return <Studio canon={canon} sessionPicks={sessionPicks} insights={insights} setInsights={setInsights}
+      teasers={teasers} setTeasers={setTeasers} onBack={()=>setView({name:"dash"})}/>;
+  if(v.name==="player"){
+    const S=getSeries(v.sid);
+    return <PlayerScreen key={v.sid+"-"+v.ep} S={S} ep={v.ep} cb={v.cb} closing={v.closing} canon={canon[v.sid]}
+      onEnd={()=>onEpisodeEnd(v.sid,v.ep)} onBack={()=>setView({name:"dash"})} portalOpen={portalAvailable&&v.sid==="anklet"} onPortalOpen={()=>setView({name:"portalprompt"})}/>;
+  }
+  if(v.name==="decision")
+    return <DecisionScreen key={v.sid+"-"+v.ep} S={getSeries(v.sid)} ep={v.ep} busy={busyGate}
+      onChoose={o=>onChoose(v.sid,v.ep,o)} onFree={t=>onFree(v.sid,v.ep,t)}/>;
+  if(v.name==="check")
+    return <CanonCheck key={v.verdict.label} S={getSeries(v.sid)} verdict={v.verdict}
+      onContinue={()=>setView({name:"interlude",sid:v.sid,ep:v.ep,verdict:v.verdict})}/>;
+  if(v.name==="interlude")
+    return <InterludeScreen key={v.sid+"-"+v.ep} S={getSeries(v.sid)} ep={v.ep} verdict={v.verdict}
+      onContinue={()=>enterEpisode(v.sid,v.ep+1)} onPortal={v.sid==="anklet"&&v.ep===1?()=>setView({name:"portalprompt"}):null}/>;
+  if(v.name==="portalprompt")
+    return <PortalHook onEnter={()=>{setPortalAvailable(true);window.StoryPulsePortal.open(2);}} onSkip={()=>{setPortalAvailable(true);enterEpisode("anklet",2);}}/>;
+  if(v.name==="portalreturn") return <PortalReturn vote={v.vote} onContinue={()=>enterEpisode("anklet",2)}/>;
+  if(v.name==="complete")
+    return <CompleteScreen S={getSeries(v.sid)} canon={canon[v.sid]} sessionPicks={sessionPicks}
+      onReplay={()=>startSeries(v.sid)} onHome={()=>setView({name:"dash"})}/>;
+  return <Dashboard canon={canon} preps={preps} onPlay={startSeries} onPrepare={prepare}
+    onStudio={()=>setView({name:"studio"})}/>;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+
+</script>
+</body>
+</html>
