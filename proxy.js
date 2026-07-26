@@ -4,11 +4,15 @@ const http = require('http');
 const https = require('https');
 
 const target = 'https://dbc-c5147863-b4e1.cloud.databricks.com/api/2.0/sql/statements';
-const cors = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'POST, OPTIONS'};
+const cors = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET, POST, OPTIONS'};
 
 function reply(res, status, body){ res.writeHead(status,{...cors,'Content-Type':'application/json'}); res.end(body); }
 http.createServer((req,res)=>{
   if(req.method === 'OPTIONS') return reply(res,204,'');
+  if(req.method === 'GET' && req.url === '/health') return reply(res,200,JSON.stringify({ok:true,databricksConfigured:!!process.env.DBX_TOKEN,openaiConfigured:!!process.env.OPENAI_API_KEY}));
+  // Local development only: the existing browser-side TTS calls need a runtime key.
+  // GitHub Secrets are injected only into a server/Action environment, never GitHub Pages.
+  if(req.method === 'GET' && req.url === '/config') return reply(res,200,JSON.stringify({openaiApiKey:process.env.OPENAI_API_KEY||''}));
   if(req.method !== 'POST' || req.url !== '/sql') return reply(res,404,JSON.stringify({error:'Not found'}));
   let body=''; req.on('data',chunk=>body+=chunk); req.on('end',()=>{
     if(!process.env.DBX_TOKEN) return reply(res,503,JSON.stringify({error:'DBX_TOKEN is not configured'}));
