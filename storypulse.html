@@ -87,7 +87,7 @@ const {useState,useEffect,useRef,useMemo,useCallback} = React;
 const GEN_MODE = "hybrid";   // "live" | "hybrid" | "seed"
 const apiKey = () => window.OPENAI_API_KEY || "";  // set in config.js, kept out of app code
 
-const hasKey = () => !!apiKey() && !/PASTE/i.test(apiKey());
+const hasKey = () => window.OPENAI_SERVER_PROXY || (!!apiKey() && !/PASTE/i.test(apiKey()));
 const liveAllowed = () => GEN_MODE !== "seed" && hasKey();
 
 /* =====================================================================
@@ -1071,9 +1071,9 @@ async function fetchTTSBlob(turn,sid){
   try{
     const ctl=new AbortController();
     const timer=setTimeout(()=>ctl.abort(),12000);
-    const r=await fetch("https://api.openai.com/v1/audio/speech",{
+    const r=await fetch((window.OPENAI_PROXY_BASE||"")+"/api/openai?path=/v1/audio/speech",{
       method:"POST", signal:ctl.signal,
-      headers:{Authorization:"Bearer "+apiKey(),"Content-Type":"application/json"},
+      headers:{"Content-Type":"application/json"},
       body:JSON.stringify({model:"gpt-4o-mini-tts",input:turn.t,voice:cast.voice,
         instructions:(cast.persona?cast.persona+" ":"")+(turn.vd||"Warm, cinematic audiobook narration."),response_format:"mp3"})
     });
@@ -1375,9 +1375,9 @@ async function llmJSON(system,user,timeoutMs=8000){
   try{
     const ctl=new AbortController();
     const timer=setTimeout(()=>ctl.abort(),timeoutMs);
-    const r=await fetch("https://api.openai.com/v1/chat/completions",{
+    const r=await fetch((window.OPENAI_PROXY_BASE||"")+"/api/openai?path=/v1/chat/completions",{
       method:"POST", signal:ctl.signal,
-      headers:{Authorization:"Bearer "+apiKey(),"Content-Type":"application/json"},
+      headers:{"Content-Type":"application/json"},
       body:JSON.stringify({model:"gpt-4.1",temperature:0.85,
         response_format:{type:"json_object"},
         messages:[{role:"system",content:system},{role:"user",content:user}]})

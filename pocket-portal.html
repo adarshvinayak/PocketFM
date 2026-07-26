@@ -620,7 +620,7 @@ const PORTAL_WINDOW = {
   nextEpisodeLabel:'Episode 3 drops when the portal closes'
 };
 /* Databricks is optional infrastructure: the listener path never awaits it. */
-const DBX = {enabled:true, proxy:"http://localhost:8787/sql", warehouseId:"7a91f4e516747541", table:"workspace.default.portal_events"};
+const DBX = {enabled:true, proxy:(location.hostname==='localhost'||location.hostname==='127.0.0.1')?"http://localhost:8787/sql":"/api/sql", warehouseId:"7a91f4e516747541", table:"workspace.default.portal_events"};
 const DBX_SESSION_ID = (crypto.randomUUID ? crypto.randomUUID() : 'portal-'+Date.now()+'-'+Math.random().toString(16).slice(2));
 const dbxQueue = [];
 let dbxConnected = false, dbxFlushTimer = null, dbxHealthTimer = null;
@@ -1086,12 +1086,12 @@ async function getCharacterResponse(charId, question, convoState){
   let userQuestion=scrubForbiddenReferences(question,'user_question');
   const verified=assertGatedPrompt(system+'\n'+userQuestion);
   if(verified!==system+'\n'+userQuestion){ system=assertGatedPrompt(system); userQuestion=scrubForbiddenReferences(userQuestion,'prompt_assert'); }
-  const apiKey=window.OPENAI_API_KEY;
+  const apiKey=window.OPENAI_API_KEY || (window.OPENAI_SERVER_PROXY?'server':'');
   if(!apiKey){ freeTextResponseCache.set(cacheKey,fallback); return fallback; }
   try{
     const ctl=new AbortController(); const timer=setTimeout(()=>ctl.abort(),8000);
-    const response=await fetch('https://api.openai.com/v1/chat/completions',{
-      method:'POST', signal:ctl.signal, headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+    const response=await fetch((window.OPENAI_PROXY_BASE||'')+'/api/openai?path=/v1/chat/completions',{
+      method:'POST', signal:ctl.signal, headers:{'Content-Type':'application/json'},
       body:JSON.stringify({model:'gpt-4.1',response_format:{type:'json_object'},messages:[{role:'system',content:system},{role:'user',content:userQuestion}]})
     });
     clearTimeout(timer);
@@ -1132,7 +1132,7 @@ function updateVoiceWarmStatus(){
 function queuePortalVoice(charId, responseId, response, tier=6){
   const key = portalVoiceKey(charId, responseId);
   if(portalVoiceCache.has(key)) return portalVoiceCache.get(key);
-  const noVoice = !window.OPENAI_API_KEY || !VOICE_CAST[charId] || !response || !response.t;
+  const noVoice = !(window.OPENAI_API_KEY||window.OPENAI_SERVER_PROXY) || !VOICE_CAST[charId] || !response || !response.t;
   const record = {key, charId, responseId, response, status:noVoice?'silent':'queued', url:null, resolve:null, promise:null};
   record.promise = new Promise(resolve => { record.resolve = resolve; });
   portalVoiceCache.set(key, record);
@@ -1149,9 +1149,9 @@ function queuePortalVoice(charId, responseId, response, tier=6){
 async function createPortalVoiceClip(job){
   const cast = VOICE_CAST[job.charId];
   try{
-    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+    const response = await fetch((window.OPENAI_PROXY_BASE||'')+'/api/openai?path=/v1/audio/speech', {
       method:'POST',
-      headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+window.OPENAI_API_KEY},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({model:'gpt-4o-mini-tts', voice:cast.voice, input:job.response.t,
         instructions:cast.persona+' '+(job.response.vd || ''), response_format:'mp3'})
     });
