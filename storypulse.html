@@ -905,7 +905,8 @@ const VOICE_CAST = {
   }
 };
 
-const ALL_SERIES=[HOLLOW,ANKLET];
+// Lead with the murder mystery: it is the story with the live investigation world.
+const ALL_SERIES=[ANKLET,HOLLOW];
 
 /* Authored performance pass: short seed turns preserve accent and emotion. It
    prepares ordinary turn objects, so player, cache, synthesis, and fallback
@@ -1590,6 +1591,11 @@ function SeriesCard({S,canon,onPlay,onPrepare,prep}){
         </div>
         <h2 className="font-display font-black text-[30px] leading-[1.02] tracking-[-0.02em] mt-2.5 mb-2.5">{S.title}</h2>
         <p className="text-[13.5px] leading-relaxed text-bone/75 mb-5">{S.logline}</p>
+        {S.id==="anklet"&&
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#F4BD43] px-3 py-1.5 text-[10px] font-black tracking-[0.14em] text-[#18120A] shadow-[0_0_22px_rgba(244,189,67,.32)] ring-1 ring-[#FFE5A0] mb-5">
+            <span className="text-[13px] leading-none">✦</span>
+            WORLD EXPLORE AVAILABLE
+          </div>}
         <div className="flex items-center gap-3 flex-wrap">
           <button onClick={onPlay}
             className="rounded-full px-6 py-3 font-display font-bold text-[15px] text-ink transition-transform active:scale-95"
