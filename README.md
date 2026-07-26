@@ -2,6 +2,8 @@
 
 StoryPulse is a cinematic, browser-based audio-drama experience. It pairs an immersive episode player with a companion investigation portal, so listeners can follow the story, explore characters and clues, and step into the world between episodes.
 
+## **[▶ OPEN THE LIVE STORYPULSE APP](https://pocketfm-six.vercel.app/)**
+
 ## What’s inside
 
 - **Episode player** — cinematic scenes, narration, character moments, and episode progression in [`storypulse.html`](./storypulse.html).
